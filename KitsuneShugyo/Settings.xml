@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!--
-	KitsuneLearnedSkills settings: how fast crafting skills level.
+	Kitsune Shugyo settings: how fast crafting skills level.
 
 	preset = SLOW, MEDIUM or FAST
 
@@ -17,12 +17,26 @@
 
 	Each number is how many of that action earn +1 level. HIGHER = SLOWER.
 	SLOW is roughly double the vanilla magazine grind, FAST roughly half.
+	Every source fills the same bar, so 40 salvage hits plus two magazines
+	are one Salvage Tools level on SLOW.
 
 	To fine-tune, add any of the names above as an attribute and it
 	overrides the preset for that one source. Example: MEDIUM, but
 	weapons level twice as slowly:
 
-	  <KitsuneLearnedSkills preset="MEDIUM" weapon="24" />
+	  <KitsuneShugyo preset="MEDIUM" weapon="24" />
+
+	Magazines are back in loot and on traders, at vanilla rates. Reading one
+	adds part of a level to its skill instead of a whole level:
+
+	  magazine   levels per read, default 0.25 (a quarter of a level).
+	             Any number above 0 and up to 10; 1 = vanilla.
+
+	  share      party (default): a magazine or perk book you read also
+	             teaches everyone in your party, wherever they are.
+	             off: nobody shares.
+
+	  <KitsuneShugyo preset="SLOW" magazine="0.5" share="off" />
 
 	Multiplayer: only the SERVER's copy of this file counts. It is baked into
 	the config the server sends every player. Restart the server after editing.
@@ -31,6 +45,6 @@
 
 	Existing characters pick up the new pace on their next login; progress
 	already earned toward the next level is kept. If this file is missing or
-	unreadable, the mod falls back to SLOW.
+	unreadable, the mod falls back to SLOW, 0.25 and party.
 -->
-<KitsuneLearnedSkills preset="SLOW" />
+<KitsuneShugyo preset="SLOW" magazine="0.25" share="party" />

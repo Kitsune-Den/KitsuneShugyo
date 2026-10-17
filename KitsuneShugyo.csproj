@@ -3,14 +3,14 @@
     <OutputType>Library</OutputType>
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <AssemblyName>KitsuneLearnedSkills</AssemblyName>
-    <RootNamespace>KitsuneLearnedSkills</RootNamespace>
+    <AssemblyName>KitsuneShugyo</AssemblyName>
+    <RootNamespace>KitsuneShugyo</RootNamespace>
     <Optimize>true</Optimize>
     <Platforms>x64</Platforms>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <!-- Output the DLL into the deployable payload folder -->
-    <OutputPath>KitsuneLearnedSkills\</OutputPath>
+    <OutputPath>KitsuneShugyo\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <!-- 3.3 CLIENT install. The client assembly is the superset: the dedicated
          server build strips UI. Build against the game version you ship for:

@@ -1,10 +1,10 @@
 <configs>
 
 	<!--
-		KitsuneLearnedSkills - attach our two hidden permanent buffs to the player.
+		Kitsune Shugyo - attach our two hidden permanent buffs to the player.
 
-		buffKLSPace   seeds the pace CVars ($kls_pace_weapon / $kls_pace_tool)
-		buffKLSLearn  the learn-by-doing triggers
+		buffShugyoPace   seeds the practice step CVars from Settings.xml
+		buffShugyoLearn  the learn-by-doing triggers
 
 		Vanilla keeps its own always-on player buffs (buffStatusCheck01/02) on
 		playerMale, so we add ours to the same list. playerFemale carries no
@@ -16,6 +16,6 @@
 		that adds a player buff.
 	-->
 
-	<csv xpath="/entity_classes/entity_class[@name='playerMale']/property[@name='Buffs']/@value" op="Add">buffKLSPace,buffKLSLearn</csv>
+	<csv xpath="/entity_classes/entity_class[@name='playerMale']/property[@name='Buffs']/@value" op="Add">buffShugyoPace,buffShugyoLearn</csv>
 
 </configs>

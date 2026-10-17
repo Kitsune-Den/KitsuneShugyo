@@ -3,69 +3,77 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 
-// KitsuneLearnedSkills — the "learn by doing" DLL half.
+// Kitsune Shugyo: the learn-by-doing DLL half.
 //
-// The XML half (Config/buffs.xml) covers learn-by-USING for 16 skills
-// (kills with weapons, block damage with tools, consuming food/medical).
-// This DLL covers everything the XML can't reach:
+// The XML half (Config/buffs.xml) covers learn-by-USING for 17 sources
+// (kills with weapons, block damage with tools, wreck salvage, consuming
+// food/medical). This DLL covers everything the XML can't reach. Every source
+// feeds the skill's practice meter (see Shugyo_Practice); the numbers below
+// are Settings.xml's actions per level.
 //
 //   1. Learn by crafting (all skills): each completed craft reads the
 //      crafted item's (or block's) UnlockedBy property and adds progress to
-//      that skill. $kls_pace_craft crafted items = +1 level.
+//      that skill. `craft` crafted items = +1 level.
 //      Two entry points, mutually exclusive by vanilla design:
 //        - EntityPlayerLocal.GiveExp(CraftCompleteData): workstation queue
 //          output (TileEntityWorkstation always routes through its
 //          CraftCompleteList, even with the window open).
-//        - XUiC_RecipeStack.giveExp: the backpack crafting queue. 0.6.1
-//          missed this one entirely — backpack crafts taught nothing.
+//        - XUiC_RecipeStack.giveExp: the backpack crafting queue.
 //
-//   2. Workstation skill (fixes the forge deadlock): every workstation-queue
-//      completion ALSO credits craftingWorkstations — the GiveExp(
-//      CraftCompleteData) path only ever fires for workstation crafts, so no
-//      area lookup is needed. Campfires count, which is the bootstrap: the
+//   2. Workstation skill: every workstation-queue completion ALSO credits
+//      craftingWorkstations. Campfires count, which is the bootstrap: the
 //      campfire is craftable at level 1, and cooking on it teaches you your
-//      way to the forge (unlocks at 4). $kls_pace_station completions = +1.
+//      way to the forge (unlocks at 4). `station` completions = +1.
 //
 //   3. Vehicle skill: XUiM_Vehicle.RepairVehicle (the repair button in the
 //      vehicle UI, client-side, consumes a repair kit) credits
-//      craftingVehicles on success. Repairing a looted bicycle is the
-//      bootstrap below the first part unlock at 5. $kls_pace_vehicle = +1.
+//      craftingVehicles on success. `vehicle` repairs = +1.
 //
 //   4. Electrician skill: TileEntityPowered.SetParentWithWireTool runs on
 //      the wiring player's client once per completed wire connection.
-//      A looted/bought wire tool is the bootstrap below the first unlock
-//      at 25. $kls_pace_wire connections = +1.
+//      `wire` connections = +1.
 //
 //   5. Gateway crafts (always-unlocked recipes hard-mapped to a skill,
 //      because their line's first UnlockedBy craftable sits above level 1):
 //        spikes + barbed fence -> craftingTraps   (dart traps unlock at 25)
 //        farm plots            -> craftingSeeds   (first seeds unlock at 2)
 //
-//   6. Backpack skill (Pack Rat): XUiC_LootWindowGroup.OpenLooting runs on
-//      the looting player's client; _firstTimeTouched is true only for the
-//      first open of a fresh, non-player container, so each container counts
-//      once and re-opening your own storage can't be farmed. Credits
-//      craftingBackpack, whose first craftable (backpackSmall) unlocks at 5.
-//      Not the onSelfOpenLootContainer XML trigger: it fires TWICE per fresh
+//   6. Backpack skill: XUiC_LootWindowGroup.OpenLooting runs on the looting
+//      player's client; _firstTimeTouched is true only for the first open of
+//      a fresh, non-player container, so each container counts once and
+//      re-opening your own storage can't be farmed. Not the
+//      onSelfOpenLootContainer XML trigger: it fires TWICE per fresh
 //      container (server LootContainerOpened + client lock response).
-//      $kls_pace_loot containers = +1. The Pack Rat magazine is also kept
-//      in loot and traders as a safety net, like armor's.
-//
-// All pace cvars are seeded by buffKLSPace in Config/buffs.xml, whose numbers
-// come from Settings.xml (see KLS_Settings.cs); the defaults below read the
-// same settings and are only fallbacks in case the buff hasn't applied yet.
+//      `loot` containers = +1.
 
-public class KitsuneLearnedSkillsInit : IModApi
+public class KitsuneShugyoInit : IModApi
 {
     private static bool inited;
+
+    // Kitsune Shugyo replaces both. Running either alongside it would level
+    // every skill twice and share every magazine twice.
+    private static readonly string[] Replaces = { "KitsuneLearnedSkills", "KitsuneSharedMagazines" };
 
     public void InitMod(Mod _modInstance)
     {
         if (inited) return;
         inited = true;
-        KLS_Settings.ModPath = _modInstance.Path;
-        KLS_Settings.Load();
-        Log.Out("[KitsuneLearnedSkills] Applying learn-by-doing Harmony patches (learning pace " + KLS_Settings.Preset + ", set in Settings.xml)");
+
+        foreach (string other in Replaces)
+        {
+            if (ModManager.ModLoaded(other))
+            {
+                Log.Error("[KitsuneShugyo] " + other + " is installed. Kitsune Shugyo replaces it: remove the "
+                    + other + " folder from Mods on the server and every client. Kitsune Shugyo is NOT running.");
+                return;
+            }
+        }
+
+        Shugyo_Settings.ModPath = _modInstance.Path;
+        Shugyo_Settings.Load();
+        Log.Out("[KitsuneShugyo] Applying Harmony patches (learning pace " + Shugyo_Settings.Preset
+            + ", magazine " + Shugyo_Settings.Magazine.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + " level per read, share " + Shugyo_Settings.Share.ToString().ToLowerInvariant() + "; set in Settings.xml)");
         new Harmony(GetType().ToString()).PatchAll(Assembly.GetExecutingAssembly());
     }
 }
@@ -76,24 +84,24 @@ public class KitsuneLearnedSkillsInit : IModApi
 [HarmonyPatch(typeof(EntityPlayerLocal))]
 [HarmonyPatch("GiveExp")]
 [HarmonyPatch(new Type[] { typeof(CraftCompleteData) })]
-public class KLS_GiveExpCraftPatch
+public class Shugyo_GiveExpCraftPatch
 {
     public static void Postfix(EntityPlayerLocal __instance, CraftCompleteData data)
     {
         try
         {
             if (__instance == null || data == null) return;
-            KLS_Award.OnCraftComplete(__instance, data.CraftedItemStack, data.RecipeName);
+            Shugyo_Craft.OnCraftComplete(__instance, data.CraftedItemStack, data.RecipeName);
             // This path only ever fires for workstation crafts: +1 completion
             // event (RecipeUsedCount, constructed as 1 per completion) toward
             // craftingWorkstations regardless of what was crafted.
             int events = (data.RecipeUsedCount > 0) ? data.RecipeUsedCount : 1;
-            KLS_Award.AwardSkill(__instance, "craftingWorkstations", events,
-                KLS_Award.StationPaceVar, KLS_Award.StationDefaultPace);
+            Shugyo_Practice.AddActions(__instance, "craftingWorkstations", events,
+                "station", Shugyo_Settings.Station);
         }
         catch (Exception ex)
         {
-            Log.Error("[KitsuneLearnedSkills] craft-to-learn (workstation) failed: " + ex);
+            Log.Error("[KitsuneShugyo] craft-to-learn (workstation) failed: " + ex);
         }
     }
 }
@@ -102,7 +110,7 @@ public class KLS_GiveExpCraftPatch
 // crafting player's client.
 [HarmonyPatch(typeof(XUiC_RecipeStack))]
 [HarmonyPatch("giveExp")]
-public class KLS_RecipeStackCraftPatch
+public class Shugyo_RecipeStackCraftPatch
 {
     public static void Postfix(XUiC_RecipeStack __instance)
     {
@@ -116,11 +124,11 @@ public class KLS_RecipeStackCraftPatch
 
             ItemValue itemValue = new ItemValue(recipe.itemValueType);
             ItemStack crafted = new ItemStack(itemValue, recipe.count);
-            KLS_Award.OnCraftComplete(player, crafted, recipe.GetName());
+            Shugyo_Craft.OnCraftComplete(player, crafted, recipe.GetName());
         }
         catch (Exception ex)
         {
-            Log.Error("[KitsuneLearnedSkills] craft-to-learn (backpack) failed: " + ex);
+            Log.Error("[KitsuneShugyo] craft-to-learn (backpack) failed: " + ex);
         }
     }
 }
@@ -129,7 +137,7 @@ public class KLS_RecipeStackCraftPatch
 // __result is true when a repair actually happened.
 [HarmonyPatch(typeof(XUiM_Vehicle))]
 [HarmonyPatch("RepairVehicle")]
-public class KLS_VehicleRepairPatch
+public class Shugyo_VehicleRepairPatch
 {
     public static void Postfix(bool __result, XUi _xui)
     {
@@ -138,12 +146,11 @@ public class KLS_VehicleRepairPatch
             if (!__result) return;
             EntityPlayerLocal player = _xui?.playerUI?.entityPlayer;
             if (player == null) return;
-            KLS_Award.AwardSkill(player, "craftingVehicles", 1,
-                KLS_Award.VehiclePaceVar, KLS_Award.VehicleDefaultPace);
+            Shugyo_Practice.AddActions(player, "craftingVehicles", 1, "vehicle", Shugyo_Settings.Vehicle);
         }
         catch (Exception ex)
         {
-            Log.Error("[KitsuneLearnedSkills] repair-to-learn failed: " + ex);
+            Log.Error("[KitsuneShugyo] repair-to-learn failed: " + ex);
         }
     }
 }
@@ -153,7 +160,7 @@ public class KLS_VehicleRepairPatch
 // there is no primary player — the identity check filters that out.
 [HarmonyPatch(typeof(TileEntityPowered))]
 [HarmonyPatch("SetParentWithWireTool")]
-public class KLS_WireToolPatch
+public class Shugyo_WireToolPatch
 {
     public static void Postfix(int wiringEntityID)
     {
@@ -161,12 +168,11 @@ public class KLS_WireToolPatch
         {
             EntityPlayerLocal player = GameManager.Instance?.World?.GetPrimaryPlayer();
             if (player == null || player.entityId != wiringEntityID) return;
-            KLS_Award.AwardSkill(player, "craftingElectrician", 1,
-                KLS_Award.WirePaceVar, KLS_Award.WireDefaultPace);
+            Shugyo_Practice.AddActions(player, "craftingElectrician", 1, "wire", Shugyo_Settings.Wire);
         }
         catch (Exception ex)
         {
-            Log.Error("[KitsuneLearnedSkills] wire-to-learn failed: " + ex);
+            Log.Error("[KitsuneShugyo] wire-to-learn failed: " + ex);
         }
     }
 }
@@ -175,7 +181,7 @@ public class KLS_WireToolPatch
 // _firstTimeTouched is the server's "never opened, not player-owned" flag.
 [HarmonyPatch(typeof(XUiC_LootWindowGroup))]
 [HarmonyPatch("OpenLooting")]
-public class KLS_LootOpenPatch
+public class Shugyo_LootOpenPatch
 {
     public static void Postfix(XUiC_LootWindowGroup __instance, TEFeatureStorage _te, bool _firstTimeTouched)
     {
@@ -184,32 +190,17 @@ public class KLS_LootOpenPatch
             if (!_firstTimeTouched || _te == null || _te.ItemGrid == null || _te.ItemGrid.PlayerOwned) return;
             EntityPlayerLocal player = __instance?.xui?.playerUI?.entityPlayer;
             if (player == null) return;
-            KLS_Award.AwardSkill(player, "craftingBackpack", 1,
-                KLS_Award.LootPaceVar, KLS_Award.LootDefaultPace);
+            Shugyo_Practice.AddActions(player, "craftingBackpack", 1, "loot", Shugyo_Settings.Loot);
         }
         catch (Exception ex)
         {
-            Log.Error("[KitsuneLearnedSkills] loot-to-learn failed: " + ex);
+            Log.Error("[KitsuneShugyo] loot-to-learn failed: " + ex);
         }
     }
 }
 
-public static class KLS_Award
+public static class Shugyo_Craft
 {
-    public const string CraftPaceVar = "$kls_pace_craft";
-    public const string StationPaceVar = "$kls_pace_station";
-    public const string VehiclePaceVar = "$kls_pace_vehicle";
-    public const string WirePaceVar = "$kls_pace_wire";
-    public const string LootPaceVar = "$kls_pace_loot";
-
-    public static float CraftDefaultPace => KLS_Settings.Craft;
-    public static float StationDefaultPace => KLS_Settings.Station;
-    public static float VehicleDefaultPace => KLS_Settings.Vehicle;
-    public static float WireDefaultPace => KLS_Settings.Wire;
-    public static float LootDefaultPace => KLS_Settings.Loot;
-
-    private const string CounterPrefix = "$kls_craft_";
-
     // Always-unlocked recipes whose skill line has no UnlockedBy craftable at
     // level 1 — hard-mapped so the line can bootstrap. Keyed by recipe name.
     private static readonly Dictionary<string, string> GatewayRecipes =
@@ -233,7 +224,7 @@ public static class KLS_Award
 
         if (!string.IsNullOrEmpty(recipeName) && GatewayRecipes.TryGetValue(recipeName, out string gatewaySkill))
         {
-            AwardSkill(player, gatewaySkill, count, CraftPaceVar, CraftDefaultPace);
+            Shugyo_Practice.AddActions(player, gatewaySkill, count, "craft", Shugyo_Settings.Craft);
         }
 
         DynamicProperties props = GetUnlockProperties(itemValue);
@@ -248,7 +239,7 @@ public static class KLS_Award
             string skill = skills[i].Trim();
             if (skill.Length != 0)
             {
-                AwardSkill(player, skill, count, CraftPaceVar, CraftDefaultPace);
+                Shugyo_Practice.AddActions(player, skill, count, "craft", Shugyo_Settings.Craft);
             }
         }
     }
@@ -279,54 +270,5 @@ public static class KLS_Award
         {
         }
         return null;
-    }
-
-    // Add `amount` doing-events to `progressionName`'s counter; every `pace`
-    // events = +1 level. Only ever touches crafting skills (ProgressionClass
-    // Type 6) — attributes, perks and books are never modified.
-    public static void AwardSkill(EntityPlayerLocal player, string progressionName, int amount,
-        string paceVar, float defaultPace)
-    {
-        Progression progression = player.Progression;
-        if (progression == null) return;
-
-        ProgressionValue value = progression.GetProgressionValue(progressionName);
-        if (value == null) return;
-
-        ProgressionClass cls = value.ProgressionClass;
-        if (cls == null || (int)cls.Type != 6 || value.Level >= cls.MaxLevel) return;
-
-        float pace = GetPace(player, paceVar, defaultPace);
-        if (pace < 1f) pace = 1f;
-
-        string counter = CounterPrefix + progressionName;
-        float count = player.Buffs.HasCustomVar(counter) ? player.Buffs.GetCustomVar(counter) : 0f;
-        count += (amount <= 0) ? 1 : amount;
-
-        int gained = 0;
-        while (count >= pace && value.Level < cls.MaxLevel)
-        {
-            count -= pace;
-            value.Level += 1;
-            gained++;
-        }
-        player.Buffs.SetCustomVar(counter, count, true, (CVarOperation)0);
-
-        if (gained > 0)
-        {
-            string skillName = Localization.Get(cls.NameKey, false, null);
-            if (string.IsNullOrEmpty(skillName)) skillName = progressionName;
-            GameManager.ShowTooltip(player, "Your " + skillName + " knowledge grows.", false, false, 0f);
-        }
-    }
-
-    private static float GetPace(EntityPlayerLocal player, string paceVar, float defaultPace)
-    {
-        if (player.Buffs != null && player.Buffs.HasCustomVar(paceVar))
-        {
-            float pace = player.Buffs.GetCustomVar(paceVar);
-            if (pace > 0f) return pace;
-        }
-        return defaultPace;
     }
 }
