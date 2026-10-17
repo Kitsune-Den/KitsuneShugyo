@@ -102,10 +102,10 @@ install `KitsuneShugyo`. Levels carry over as they are. On each character's
 first login, progress toward the next level is moved onto the new meters, and
 the old buffs and counters are cleared.
 
-**From Kitsune Shared Magazines:** remove the `KitsuneSharedMagazines` folder.
-Its sharing is built in.
+**From Kitsune Shared Magazines or Kitsune Shared Reading:** remove the
+`KitsuneSharedMagazines` or `KitsuneSharedReading` folder. Sharing is built in.
 
-If either old mod is still installed, Kitsune Shugyō logs an error naming it
+If any of these old mods is still installed, Kitsune Shugyō logs an error naming it
 and doesn't start.
 
 ## Layout

@@ -50,9 +50,10 @@ public class KitsuneShugyoInit : IModApi
 {
     private static bool inited;
 
-    // Kitsune Shugyo replaces both. Running either alongside it would level
-    // every skill twice and share every magazine twice.
-    private static readonly string[] Replaces = { "KitsuneLearnedSkills", "KitsuneSharedMagazines" };
+    // Kitsune Shugyo replaces these. Running one alongside it would level
+    // every skill twice or share every read twice (SharedReading, the
+    // predecessor of SharedMagazines, re-fires each read on every member).
+    private static readonly string[] Replaces = { "KitsuneLearnedSkills", "KitsuneSharedMagazines", "KitsuneSharedReading" };
 
     public void InitMod(Mod _modInstance)
     {
