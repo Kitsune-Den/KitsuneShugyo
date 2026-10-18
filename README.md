@@ -100,3 +100,7 @@ tool, so the skill can grow from the scavenging you already do instead of
 only from repair kits. Vanilla tags every car, truck and bus wreck with
 `challenge_cars`, so this is pure XML (`TriggerHasTags` on block hits). Its
 pace is the new `wreck` key in `Settings.xml`. Suggested by Hank on Discord.
+
+## License
+
+[CC BY-NC-SA 4.0](LICENSE), with an extra permission for servers that make money: see [NOTICE.md](NOTICE.md). In short: play it, change it and share it, with credit, not for sale, and with changed versions under the same license.
