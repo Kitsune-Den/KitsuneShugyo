@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!--
-	Kitsune Shugyo settings: how fast crafting skills level.
+	Kitsune Shugyo settings: how fast crafting skills and attributes level.
 
 	preset = SLOW, MEDIUM or FAST
 
@@ -14,6 +14,7 @@
 	  wire     connections       4       2      1   (wire tool connections)
 	  loot     containers       30      20      8   (fresh loot containers opened; Backpacks skill)
 	  wreck    hits             80      60     20   (salvage-tool hits on vehicle wrecks; Vehicles skill)
+	  attribute points          40      25     10   (attributes; see below)
 
 	Each number is how many of that action earn +1 level. HIGHER = SLOWER.
 	SLOW is roughly double the vanilla magazine grind, FAST roughly half.
@@ -25,6 +26,15 @@
 	weapons level twice as slowly:
 
 	  <KitsuneShugyo preset="MEDIUM" weapon="24" />
+
+	Attributes (Perception, Strength, Fortitude, Agility, Intellect) are
+	earned by practice, not bought with skill points; skill points buy perks
+	only. `attribute` is practice points per rank step: going from rank r to
+	r+1 costs r x attribute points. A kill with gear tagged for that
+	attribute is 1 point (rifles: Perception, clubs: Strength, ...), so on
+	SLOW, rank 1 -> 2 is 40 kills and rank 9 -> 10 is 360. Other sources
+	(block hits, upgrades, injuries healed, sneak attacks, looting,
+	crafting, reading, trading) are listed in the README.
 
 	Magazines are back in loot and on traders, at vanilla rates. Reading one
 	adds part of a level to its skill instead of a whole level:

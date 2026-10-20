@@ -45,6 +45,9 @@ using HarmonyLib;
 //      onSelfOpenLootContainer XML trigger: it fires TWICE per fresh
 //      container (server LootContainerOpened + client lock response).
 //      `loot` containers = +1.
+//
+// The same hooks also feed attribute practice (Shugyo_Attributes): crafting,
+// wiring and vehicle repairs teach Intellect, fresh containers Perception.
 
 public class KitsuneShugyoInit : IModApi
 {
@@ -70,6 +73,7 @@ public class KitsuneShugyoInit : IModApi
             }
         }
 
+        Shugyo_Attributes.Enabled = true;
         Shugyo_Settings.ModPath = _modInstance.Path;
         Shugyo_Settings.Load();
         Log.Out("[KitsuneShugyo] Applying Harmony patches (learning pace " + Shugyo_Settings.Preset
@@ -99,6 +103,7 @@ public class Shugyo_GiveExpCraftPatch
             int events = (data.RecipeUsedCount > 0) ? data.RecipeUsedCount : 1;
             Shugyo_Practice.AddActions(__instance, "craftingWorkstations", events,
                 "station", Shugyo_Settings.Station);
+            Shugyo_Attributes.Add(__instance, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Craft);
         }
         catch (Exception ex)
         {
@@ -126,6 +131,7 @@ public class Shugyo_RecipeStackCraftPatch
             ItemValue itemValue = new ItemValue(recipe.itemValueType);
             ItemStack crafted = new ItemStack(itemValue, recipe.count);
             Shugyo_Craft.OnCraftComplete(player, crafted, recipe.GetName());
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Craft);
         }
         catch (Exception ex)
         {
@@ -148,6 +154,7 @@ public class Shugyo_VehicleRepairPatch
             EntityPlayerLocal player = _xui?.playerUI?.entityPlayer;
             if (player == null) return;
             Shugyo_Practice.AddActions(player, "craftingVehicles", 1, "vehicle", Shugyo_Settings.Vehicle);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Repair);
         }
         catch (Exception ex)
         {
@@ -170,6 +177,7 @@ public class Shugyo_WireToolPatch
             EntityPlayerLocal player = GameManager.Instance?.World?.GetPrimaryPlayer();
             if (player == null || player.entityId != wiringEntityID) return;
             Shugyo_Practice.AddActions(player, "craftingElectrician", 1, "wire", Shugyo_Settings.Wire);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Wire);
         }
         catch (Exception ex)
         {
@@ -192,6 +200,7 @@ public class Shugyo_LootOpenPatch
             EntityPlayerLocal player = __instance?.xui?.playerUI?.entityPlayer;
             if (player == null) return;
             Shugyo_Practice.AddActions(player, "craftingBackpack", 1, "loot", Shugyo_Settings.Loot);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Perception, Shugyo_Attributes.Points.Loot);
         }
         catch (Exception ex)
         {

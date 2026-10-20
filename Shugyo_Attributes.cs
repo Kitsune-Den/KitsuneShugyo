@@ -1,0 +1,338 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Xml.Linq;
+using HarmonyLib;
+using UnityEngine.Scripting;
+
+// Phase 2: attributes from practice. Skill points buy perks only.
+//
+// Every attribute has ONE meter, $shugyo_<attribute>, counting in fractions
+// of a rank, like the crafting meters. Sources add PRACTICE POINTS (a kill
+// with gear tagged for that attribute is 1 point; the full list is Points
+// below). Going from rank r to r+1 costs r x `attribute` points, where
+// `attribute` is the Settings.xml base: on SLOW (40), Perception 1 -> 2 is 40
+// kills with a rifle, 9 -> 10 is 360. Points carry over a rank boundary.
+//
+// Vanilla does the rest. Perk ranks are gated on attribute level, and
+// AddProgressionLevel-style level changes skip the point cost and
+// level_requirements, so a rank earned here unlocks perks the moment it lands.
+// The rank's passives (carry weight, headshot damage, ...) are re-read every
+// frame, so they apply at once too.
+//
+// Sources:
+//   - Config/buffs.xml calls the ShugyoPractice action below (kills and block
+//     hits with tagged gear, block upgrades, damage taken, recovering from
+//     injuries and infection).
+//   - This DLL adds directly for what the XML can't see: sneak-attack hits,
+//     fresh loot containers, crafting, wiring, vehicle repairs, reading and
+//     trading.
+//
+// Everything runs on the player's own client, the only place a player's
+// progression can change (the server takes the client's word for it, as it
+// does for vanilla's Buy button).
+public static class Shugyo_Attributes
+{
+    // False when the mod refused to start (an old mod is still installed), so
+    // the XML action does nothing either.
+    public static bool Enabled;
+
+    public const string Perception = "attPerception";
+    public const string Strength = "attStrength";
+    public const string Fortitude = "attFortitude";
+    public const string Agility = "attAgility";
+    public const string Intellect = "attIntellect";
+
+    // Practice points per action, relative to a kill (1). Not in Settings.xml:
+    // `attribute` scales them all, and these set how sources compare.
+    public static class Points
+    {
+        public const float Kill = 1f;          // kill holding gear tagged for the attribute
+        public const float BlockHit = 0.1f;    // block hit holding that gear
+        public const float Upgrade = 0.5f;     // block upgrade (Strength)
+        public const float DamageTaken = 0.5f; // hit by a zombie, animal or bandit (Fortitude)
+        public const float Recovery = 10f;     // healed a sprain, break or infection (Fortitude)
+        public const float SneakHit = 2f;      // sneak-attack hit (Agility)
+        public const float Loot = 1f;          // fresh loot container (Perception)
+        public const float Craft = 1f;         // completed craft (Intellect)
+        public const float Wire = 1f;          // wire connection (Intellect)
+        public const float Repair = 2f;        // vehicle repair (Intellect)
+        public const float Read = 2f;          // magazine or perk book you read yourself (Intellect)
+        public const float Trade = 1f;         // a purchase or sale at a trader (Intellect)
+    }
+
+    private static readonly Dictionary<string, string> Canonical = BuildCanonical(
+        Perception, Strength, Fortitude, Agility, Intellect);
+
+    // What a rank-up says: "Your Perception sharpens: rank 5."
+    private static readonly Dictionary<string, string> Verbs =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        { Perception, "sharpens" },
+        { Strength, "grows" },
+        { Fortitude, "hardens" },
+        { Agility, "quickens" },
+        { Intellect, "deepens" },
+    };
+
+    private static Dictionary<string, string> BuildCanonical(params string[] names)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string name in names) map[name] = name;
+        return map;
+    }
+
+    public static bool IsPracticed(string progressionName)
+    {
+        return progressionName != null && Canonical.ContainsKey(progressionName);
+    }
+
+    public static string MeterVar(string attribute)
+    {
+        return Shugyo_Practice.MeterPrefix + (Canonical.TryGetValue(attribute, out string name) ? name : attribute);
+    }
+
+    public static ProgressionValue Attribute(EntityAlive player, string attribute)
+    {
+        if (player == null || player.Progression == null || !IsPracticed(attribute)) return null;
+        ProgressionValue value = player.Progression.GetProgressionValue(attribute);
+        if (value == null || value.ProgressionClass == null || !value.ProgressionClass.IsAttribute) return null;
+        return value;
+    }
+
+    // Practice points per rank step on this player's server (Settings.xml's
+    // `attribute`), read back from the step the pace buff seeds.
+    public static float Base(EntityPlayerLocal player)
+    {
+        return 1f / Shugyo_Practice.Step(player, "attribute", Shugyo_Settings.Attribute);
+    }
+
+    // Adds `points` of practice to the attribute and ranks it up while the
+    // meter is full. Returns the ranks gained.
+    public static int Add(EntityPlayerLocal player, string attribute, float points)
+    {
+        if (!Enabled || player == null || player.isEntityRemote || player.Buffs == null || points <= 0f) return 0;
+        ProgressionValue value = Attribute(player, attribute);
+        if (value == null) return 0;
+
+        ProgressionClass cls = value.ProgressionClass;
+        string var = MeterVar(attribute);
+        if (value.Level >= cls.MaxLevel)
+        {
+            player.Buffs.SetCustomVar(var, 0f, true, CVarOperation.set);
+            return 0;
+        }
+
+        float basePoints = Base(player);
+        float meter = player.Buffs.HasCustomVar(var) ? player.Buffs.GetCustomVar(var) : 0f;
+        int oldLevel = value.Level;
+        while (points > 0f && value.Level < cls.MaxLevel)
+        {
+            float need = basePoints * Math.Max(1, value.Level);
+            meter += points / need;
+            points = 0f;
+            if (meter >= Shugyo_Practice.Threshold)
+            {
+                // Whatever overflows this rank carries into the next, which
+                // costs more, so it is converted back to points first.
+                points = Math.Max(0f, meter - 1f) * need;
+                meter = 0f;
+                value.Level += 1;
+            }
+        }
+        if (value.Level >= cls.MaxLevel) meter = 0f;
+        player.Buffs.SetCustomVar(var, meter, true, CVarOperation.set);
+
+        int gained = value.Level - oldLevel;
+        if (gained > 0) Announce(player, value);
+        return gained;
+    }
+
+    private static void Announce(EntityPlayerLocal player, ProgressionValue value)
+    {
+        player.Progression.bProgressionStatsChanged = true;
+        player.bPlayerStatsChanged = true;
+        player.PlayerUI?.xui?.Recipes?.RefreshTrackedRecipe();
+
+        string verb = Verbs.TryGetValue(value.Name, out string v) ? v : "grows";
+        string line = "Your " + Shugyo_Practice.DisplayName(value.ProgressionClass) + " " + verb + ": rank "
+            + value.Level.ToString(CultureInfo.InvariantCulture) + ".";
+        GameManager.ShowTooltip(player, line, false, false, 0f);
+        Audio.Manager.PlayInsidePlayerHead("ui_skill_purchase");
+    }
+}
+
+// <triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo"
+//                   attribute="attStrength" points="1"/>
+// The XML half of attribute practice. Its own action (not ModifyCVar) because
+// each rank costs more than the last, which a fixed XML step can't express.
+[Preserve]
+public class MinEventActionShugyoPractice : MinEventActionTargetedBase
+{
+    private string attribute;
+    private float points = 1f;
+
+    public override bool CanExecute(MinEventTypes _eventType, MinEventParams _params)
+    {
+        return base.CanExecute(_eventType, _params) && attribute != null && points > 0f;
+    }
+
+    public override void Execute(MinEventParams _params)
+    {
+        if (targets == null) return;
+        try
+        {
+            for (int i = 0; i < targets.Count; i++)
+            {
+                if (targets[i] is EntityPlayerLocal player && !player.isEntityRemote)
+                {
+                    Shugyo_Attributes.Add(player, attribute, points);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] attribute practice failed: " + ex);
+        }
+    }
+
+    public override bool ParseXmlAttribute(XAttribute _attribute)
+    {
+        bool flag = base.ParseXmlAttribute(_attribute);
+        if (!flag)
+        {
+            switch (_attribute.Name.LocalName)
+            {
+            case "attribute":
+                attribute = _attribute.Value;
+                break;
+            case "points":
+                points = StringParsers.ParseFloat(_attribute.Value);
+                break;
+            }
+        }
+        return flag;
+    }
+}
+
+// Attribute ranks are earned, not bought. The Buy button on the attribute
+// screen is the only place vanilla sells them (XUiC_SkillAttributeLevel); an
+// unmeetable level_requirements would also cap the rank you have, since 3.3
+// clamps an attribute's effective level to what its requirements allow.
+[HarmonyPatch(typeof(XUiC_SkillAttributeLevel))]
+[HarmonyPatch("btnBuy_OnPress")]
+public class Shugyo_AttributeBuyPatch
+{
+    public static bool Prefix(XUiC_SkillAttributeLevel __instance)
+    {
+        if (!Shugyo_Attributes.Enabled) return true;
+        try
+        {
+            EntityPlayerLocal player = __instance?.xui?.playerUI?.entityPlayer;
+            if (player != null)
+            {
+                GameManager.ShowTooltip(player, "Attributes are earned by practice, not bought. Skill points go to perks.",
+                    false, false, 0f);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] attribute buy block failed: " + ex);
+        }
+        return false;
+    }
+}
+
+// Grandpa's Forgetting Elixir (and any other ResetProgression: twitch and
+// admin resets) resets PERKS only. Vanilla refunds every attribute rank above
+// 1 as if it had been bought; with ranks earned by practice that would hand
+// out points nobody spent. So attributes are set to 1 for the duration of the
+// call, which makes vanilla skip them, and put back afterwards. Their meters
+// are cvars and are never touched.
+[HarmonyPatch(typeof(Progression))]
+[HarmonyPatch("ResetProgression")]
+public class Shugyo_ResetKeepsAttributesPatch
+{
+    public static void Prefix(Progression __instance, out List<KeyValuePair<ProgressionValue, int>> __state)
+    {
+        __state = null;
+        if (!Shugyo_Attributes.Enabled || __instance?.ProgressionValueQuickList == null) return;
+        foreach (ProgressionValue value in __instance.ProgressionValueQuickList)
+        {
+            if (value?.ProgressionClass == null || !value.ProgressionClass.IsAttribute) continue;
+            if (!Shugyo_Attributes.IsPracticed(value.Name) || value.Level <= 1) continue;
+            if (__state == null) __state = new List<KeyValuePair<ProgressionValue, int>>();
+            __state.Add(new KeyValuePair<ProgressionValue, int>(value, value.Level));
+            value.Level = 1;
+        }
+    }
+
+    // A finalizer, so the ranks come back even if vanilla throws.
+    public static void Finalizer(List<KeyValuePair<ProgressionValue, int>> __state)
+    {
+        if (__state == null) return;
+        foreach (var kept in __state)
+        {
+            kept.Key.Level = kept.Value;
+        }
+    }
+}
+
+// Agility: a sneak-attack hit. The game tells the attacker's client with this
+// call (the "Sneak damage x2" banner) when the victim's damage response comes
+// back, so it fires once per sneak hit, for the local player only.
+[HarmonyPatch(typeof(EntityPlayerLocal))]
+[HarmonyPatch("NotifySneakDamage")]
+public class Shugyo_SneakHitPatch
+{
+    public static void Postfix(EntityPlayerLocal __instance)
+    {
+        try
+        {
+            Shugyo_Attributes.Add(__instance, Shugyo_Attributes.Agility, Shugyo_Attributes.Points.SneakHit);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] sneak practice failed: " + ex);
+        }
+    }
+}
+
+// Intellect: buying or selling at a trader or vending machine. Vanilla reports
+// each completed transaction to the quest system from the trade UI on the
+// trading player's client; it counts once per transaction, not per item.
+[HarmonyPatch(typeof(QuestEventManager))]
+[HarmonyPatch("BoughtItems")]
+public class Shugyo_TradeBuyPatch
+{
+    public static void Postfix()
+    {
+        Shugyo_TradePractice.Add();
+    }
+}
+
+[HarmonyPatch(typeof(QuestEventManager))]
+[HarmonyPatch("SoldItems")]
+public class Shugyo_TradeSellPatch
+{
+    public static void Postfix()
+    {
+        Shugyo_TradePractice.Add();
+    }
+}
+
+public static class Shugyo_TradePractice
+{
+    public static void Add()
+    {
+        try
+        {
+            EntityPlayerLocal player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Trade);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] trade practice failed: " + ex);
+        }
+    }
+}
