@@ -3,7 +3,8 @@
 *Shugyō (修行): training through practice.*
 
 A 7 Days to Die progression mod built on one rule: **you get better at what
-you do.** Crafting skills level from using tools and weapons, crafting,
+you do.** Attributes level from practice, and skill points buy perks only.
+Crafting skills level from using tools and weapons, crafting,
 cooking, repairing and salvaging vehicles, wiring and looting. Magazines are
 back in loot, but they speed you up instead of gating you, and whatever you
 read is shared with your party. Perk books are untouched, apart from being
@@ -39,6 +40,7 @@ SLOW, 40 salvage hits plus two Salvage Tools magazines are one level
 | `wire` wire connections | 4 | 2 | 1 |
 | `loot` fresh loot containers opened | 30 | 20 | 8 |
 | `wreck` salvage-tool hits on vehicle wrecks | 80 | 60 | 20 |
+| `attribute` practice points per attribute rank step (see Attributes) | 40 | 25 | 10 |
 
 Each number is actions per level (higher = slower). Any source can be
 overridden on top of a preset, e.g. `<KitsuneShugyo preset="MEDIUM" weapon="24" />`.
@@ -52,6 +54,41 @@ overridden on top of a preset, e.g. `<KitsuneShugyo preset="MEDIUM" weapon="24" 
   into the `buffs.xml` the server sends to every client, so players can't
   change their own pace. Restart the server after editing.
 - **Single player:** takes effect the next time you load a world.
+
+## Attributes
+
+Perception, Strength, Fortitude, Agility and Intellect are **earned by
+practice, not bought**. The Buy button on the attribute screen does nothing,
+and skill points go to perks only. Perks still need their attribute rank, so
+you can't buy Dead Eye 3 until you've shot your way to Perception 5. Player
+level, XP and skill points per level are unchanged.
+
+Each attribute has a practice meter. Going from rank r to r+1 costs
+r × `attribute` practice points, so higher ranks take longer. On SLOW (40),
+rank 1 to 2 is 40 points and rank 9 to 10 is 360.
+
+| Practice | Attribute | Points |
+|---|---|---|
+| a kill holding gear tagged for the attribute (every vanilla weapon and tool has one) | rifles, spears, salvage tools, explosives: Perception · clubs, sledges, axes, picks, shovels: Strength · fists, knuckles, machine guns: Fortitude · knives, machetes, handguns, bows: Agility · batons, robotic sledge, turret, drone: Intellect | 1 |
+| a block hit holding that gear | same as above | 0.1 |
+| upgrading a block | Strength | 0.5 |
+| being hit by a zombie, animal or bandit (falls, fire and cactus don't count) | Fortitude | 0.5 |
+| healing a sprain, a splinted or cast limb, or curing an infection | Fortitude | 10 |
+| a sneak-attack hit | Agility | 2 |
+| opening a fresh loot container | Perception | 1 |
+| a completed craft (backpack or workstation) | Intellect | 1 |
+| a wire connection | Intellect | 1 |
+| repairing a vehicle | Intellect | 2 |
+| reading a magazine or perk book yourself (shared reads don't count) | Intellect | 2 |
+| buying or selling at a trader or vending machine | Intellect | 1 |
+
+A rank-up shows a line like "Your Perception sharpens: rank 5."
+
+**Grandpa's Forgetting Elixir resets perks only.** It refunds the points you
+spent on perks and leaves attributes and their practice alone. (Vanilla
+refunds every attribute rank above 1 as if it had been bought, which would
+hand out points for ranks earned by practice.) This applies to every
+progression reset, including admin and Twitch resets.
 
 ## How skills level
 
@@ -97,8 +134,12 @@ and nobody is dropped.
 
 ## Upgrading
 
+**From Kitsune Shugyō 0.1.x:** install over it. Attribute ranks your
+characters bought are kept, the points spent on them stay spent, and practice
+starts from there toward the next rank.
+
 **From Kitsune Learned Skills:** remove the `KitsuneLearnedSkills` folder and
-install `KitsuneShugyo`. Levels carry over as they are. On each character's
+install `KitsuneShugyo`. Levels and attribute ranks carry over as they are. On each character's
 first login, progress toward the next level is moved onto the new meters, and
 the old buffs and counters are cleared.
 
@@ -111,7 +152,7 @@ and doesn't start.
 ## Layout
 
 - `KitsuneShugyo/`: the deployable mod payload (extract into `Mods/`)
-- `KitsuneShugyo/Settings.xml`: learning pace, magazine value, sharing
+- `KitsuneShugyo/Settings.xml`: learning pace, attribute pace, magazine value, sharing
 - `Shugyo_*.cs` + `KitsuneShugyo.csproj`: DLL source; builds straight into
   the payload folder. References the installed 7DTD client's `Managed` folder
   (override with `-p:GameDir=...`).
@@ -120,6 +161,9 @@ and doesn't start.
 
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history) and folds in Kitsune Shared Magazines 0.2.3.
+
+0.2.0 (Phase 2): attributes from practice, skill points for perks only, and
+the Forgetting Elixir resets perks only.
 
 ## License
 

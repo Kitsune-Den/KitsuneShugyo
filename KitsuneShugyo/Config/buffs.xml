@@ -21,6 +21,11 @@
 		Floats: 80 additions of 1/80 can land a hair under 1.0, so a level is
 		due at 0.999, the same threshold the DLL uses (Shugyo_Practice).
 
+		ATTRIBUTES (Phase 2) have meters too, $shugyo_<attribute>, but each
+		rank costs more than the last, so their lines call the DLL's
+		ShugyoPractice action instead of adding a fixed step. See ATTRIBUTE
+		PRACTICE at the end of buffShugyoLearn.
+
 		(Old saves: the Kitsune Learned Skills buffs buffKLSPace and
 		 buffKLSLearn no longer exist, and the game drops unknown buffs when it
 		 loads a save. The DLL carries KLS's partial counters over to the new
@@ -92,6 +97,8 @@
 				$shugyo_step_loot    per fresh loot container opened (DLL)
 				$shugyo_step_wreck   per salvage-tool hit on a vehicle wreck
 				$shugyo_magazine     levels per magazine read (DLL, shared)
+				$shugyo_step_attribute  1 / attribute practice points per rank
+				                        step (DLL; see ATTRIBUTE PRACTICE)
 
 			The DLL REPLACES the effect group below with the numbers from
 			Settings.xml while the host loads buffs.xml, so a dedicated
@@ -130,6 +137,8 @@
 				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_wreck"   operation="set" value="0.0125"/>
 				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_magazine"     operation="set" value="0.25"/>
 				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_magazine"     operation="set" value="0.25"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_attribute" operation="set" value="0.025"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_attribute" operation="set" value="0.025"/>
 			</effect_group>
 
 		</buff>
@@ -537,8 +546,168 @@
 				</triggered_effect>
 			</effect_group>
 
+			<!--
+				=================================================================
+				 ATTRIBUTE PRACTICE (Phase 2)
+				=================================================================
+
+				Attributes level from practice; skill points buy perks only.
+				Each attribute has one meter, $shugyo_<attribute>, in fractions
+				of a rank. These lines call the DLL's ShugyoPractice action
+				with PRACTICE POINTS (a kill = 1); the DLL turns points into
+				meter progress, because rank r -> r+1 costs r x Settings.xml's
+				`attribute` points and a fixed XML step can't follow that.
+
+				Every vanilla weapon and tool carries exactly one attribute tag
+				(attPerception on rifles and wrenches, attStrength on clubs and
+				pickaxes, ...), so one rule per attribute covers them all:
+				  kill holding that gear       1 point
+				  block hit holding that gear  0.1 point
+				Plus:
+				  block upgrade                0.5 Strength
+				  hit by a zombie, animal or
+				  bandit                       0.5 Fortitude
+				  healing a sprain, break or
+				  infection                    10 Fortitude (appended to the
+				                               vanilla injury buffs below)
+				The DLL adds the rest: sneak-attack hits (Agility), fresh loot
+				containers (Perception), crafting, wiring, vehicle repairs,
+				reading and trading (Intellect).
+			-->
+			<!-- gear tagged attPerception -> Perception -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="1">
+					<requirement name="HoldingItemHasTags" tags="attPerception"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="0.1">
+					<requirement name="HoldingItemHasTags" tags="attPerception"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- gear tagged attStrength -> Strength -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="1">
+					<requirement name="HoldingItemHasTags" tags="attStrength"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="0.1">
+					<requirement name="HoldingItemHasTags" tags="attStrength"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- gear tagged attFortitude -> Fortitude -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="1">
+					<requirement name="HoldingItemHasTags" tags="attFortitude"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="0.1">
+					<requirement name="HoldingItemHasTags" tags="attFortitude"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- gear tagged attAgility -> Agility -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="1">
+					<requirement name="HoldingItemHasTags" tags="attAgility"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="0.1">
+					<requirement name="HoldingItemHasTags" tags="attAgility"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- gear tagged attIntellect -> Intellect -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="1">
+					<requirement name="HoldingItemHasTags" tags="attIntellect"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="0.1">
+					<requirement name="HoldingItemHasTags" tags="attIntellect"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- block upgrades -> Strength -->
+			<effect_group>
+				<triggered_effect trigger="onSelfUpgradedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="0.5"/>
+			</effect_group>
+
+			<!-- taking hits from zombies, animals and bandits -> Fortitude.
+			     Falls, fire and cactus don't count. -->
+			<effect_group>
+				<triggered_effect trigger="onOtherDamagedSelf" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="0.5">
+					<requirement name="EntityTagCompare" target="other" tags="zombie,animal,bandit"/>
+				</triggered_effect>
+			</effect_group>
+
 		</buff>
 
+	</append>
+
+	<!--
+		=====================================================================
+		 FORTITUDE FROM RECOVERY (Phase 2)
+		=====================================================================
+
+		Healing an injury or infection is Fortitude practice. Each injury
+		buff below ends either because it healed or because it turned into
+		the next stage (sprain -> break, splint -> cast) or the player died.
+		Only a heal counts: alive, and not moved on to a worse or treated
+		stage. A sprain that heals by itself, a splinted or cast limb that
+		mends, a cured infection.
+	-->
+	<append xpath="/buffs/buff[@name='buffLegSprained']">
+		<effect_group>
+			<triggered_effect trigger="onSelfBuffRemove" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="10">
+				<requirement name="IsAlive"/>
+				<requirement name="!HasBuff" buff="buffLegBroken,buffLegSplinted,buffLegCast"/>
+			</triggered_effect>
+		</effect_group>
+	</append>
+	<append xpath="/buffs/buff[@name='buffArmSprained']">
+		<effect_group>
+			<triggered_effect trigger="onSelfBuffRemove" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="10">
+				<requirement name="IsAlive"/>
+				<requirement name="!HasBuff" buff="buffArmBroken,buffArmSplinted,buffArmCast"/>
+			</triggered_effect>
+		</effect_group>
+	</append>
+	<append xpath="/buffs/buff[@name='buffLegSplinted']">
+		<effect_group>
+			<triggered_effect trigger="onSelfBuffRemove" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="10">
+				<requirement name="IsAlive"/>
+				<requirement name="!HasBuff" buff="buffLegBroken,buffLegCast"/>
+			</triggered_effect>
+		</effect_group>
+	</append>
+	<append xpath="/buffs/buff[@name='buffArmSplinted']">
+		<effect_group>
+			<triggered_effect trigger="onSelfBuffRemove" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="10">
+				<requirement name="IsAlive"/>
+				<requirement name="!HasBuff" buff="buffArmBroken,buffArmCast"/>
+			</triggered_effect>
+		</effect_group>
+	</append>
+	<append xpath="/buffs/buff[@name='buffLegCast']">
+		<effect_group>
+			<triggered_effect trigger="onSelfBuffRemove" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="10">
+				<requirement name="IsAlive"/>
+				<requirement name="!HasBuff" buff="buffLegBroken"/>
+			</triggered_effect>
+		</effect_group>
+	</append>
+	<append xpath="/buffs/buff[@name='buffArmCast']">
+		<effect_group>
+			<triggered_effect trigger="onSelfBuffRemove" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="10">
+				<requirement name="IsAlive"/>
+				<requirement name="!HasBuff" buff="buffArmBroken"/>
+			</triggered_effect>
+		</effect_group>
+	</append>
+	<append xpath="/buffs/buff[@name='buffInfectionMain']">
+		<effect_group>
+			<triggered_effect trigger="onSelfBuffRemove" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="10">
+				<requirement name="IsAlive"/>
+				<requirement name="!HasBuff" buff="buffInfection04"/>
+			</triggered_effect>
+		</effect_group>
 	</append>
 
 </configs>

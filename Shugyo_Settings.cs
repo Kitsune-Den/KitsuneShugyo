@@ -23,6 +23,10 @@ using HarmonyLib;
 // that's easier to reason about; the buff stores the reciprocal, the STEP one
 // action adds to the meter ($shugyo_step_<key>), so the XML only ever adds.
 //
+// `attribute` is the one exception to "actions per level": it's practice
+// points per rank step (a kill is 1 point), and rank r -> r+1 costs r times
+// it. Its step is stored the same way and Shugyo_Attributes turns it back.
+//
 // `magazine` is different: it's already in levels (0.25 = a quarter of a level
 // per read). `share` is read by the server's DLL directly and never reaches
 // the buff.
@@ -39,15 +43,15 @@ public static class Shugyo_Settings
 
     // Actions-per-level keys, in the order buffShugyoPace seeds their steps;
     // keys are the Settings.xml attribute names.
-    private static readonly string[] Keys = { "weapon", "tool", "use", "craft", "station", "vehicle", "wire", "loot", "wreck" };
+    private static readonly string[] Keys = { "weapon", "tool", "use", "craft", "station", "vehicle", "wire", "loot", "wreck", "attribute" };
 
     private static readonly Dictionary<string, float[]> Presets =
         new Dictionary<string, float[]>(StringComparer.OrdinalIgnoreCase)
     {
-        //                       weapon tool use craft station vehicle wire loot wreck
-        { "SLOW",   new float[] { 16f, 80f, 8f, 8f, 16f, 4f, 4f, 30f, 80f } },
-        { "MEDIUM", new float[] { 12f, 60f, 6f, 6f,  8f, 2f, 2f, 20f, 60f } },
-        { "FAST",   new float[] {  4f, 20f, 2f, 2f,  4f, 1f, 1f,  8f, 20f } },
+        //                       weapon tool use craft station vehicle wire loot wreck attribute
+        { "SLOW",   new float[] { 16f, 80f, 8f, 8f, 16f, 4f, 4f, 30f, 80f, 40f } },
+        { "MEDIUM", new float[] { 12f, 60f, 6f, 6f,  8f, 2f, 2f, 20f, 60f, 25f } },
+        { "FAST",   new float[] {  4f, 20f, 2f, 2f,  4f, 1f, 1f,  8f, 20f, 10f } },
     };
 
     public enum ShareMode { Party, Off }
@@ -69,6 +73,9 @@ public static class Shugyo_Settings
     public static float Wire => values[6];
     public static float Loot => values[7];
     public static float Wreck => values[8];
+    // Practice points per rank step for attributes: rank r -> r+1 costs
+    // r x this (see Shugyo_Attributes). Stored as a step like the others.
+    public static float Attribute => values[9];
 
     public static string StepVar(string key) => "$shugyo_step_" + key;
     public const string MagazineVar = "$shugyo_magazine";

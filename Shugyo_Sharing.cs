@@ -76,6 +76,7 @@ public class Shugyo_MagazineReadPatch
             {
                 int gained = Shugyo_Practice.Add(player, skill, reads * Shugyo_Practice.MagazineValue(player), "");
                 GameManager.ShowTooltip(player, Shugyo_Practice.Progress(player, skill, gained), false, false, 0f);
+                Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read);
                 Shugyo_Share.ReportRead(player, skill, reads);
             }
             return false;
@@ -120,6 +121,7 @@ public class Shugyo_BookReadHeldPatch
         {
             EntityPlayerLocal player = _actionData.invData.holdingEntity as EntityPlayerLocal;
             Shugyo_Share.HealSeriesOf(player, __state.Unlocks);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read);
             Shugyo_Share.ReportBook(player, __state.Unlocks, __state.GetItemName());
         }
         catch (Exception ex)
@@ -154,6 +156,7 @@ public class Shugyo_BookReadInstantPatch
         {
             EntityPlayerLocal player = ent as EntityPlayerLocal;
             Shugyo_Share.HealSeriesOf(player, __state.Unlocks);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read);
             Shugyo_Share.ReportBook(player, __state.Unlocks, __state.GetItemName());
         }
         catch (Exception ex)
