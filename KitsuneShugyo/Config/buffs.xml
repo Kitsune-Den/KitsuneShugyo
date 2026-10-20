@@ -99,6 +99,9 @@
 				$shugyo_magazine     levels per magazine read (DLL, shared)
 				$shugyo_step_attribute  1 / attribute practice points per rank
 				                        step (DLL; see ATTRIBUTE PRACTICE)
+				$shugyo_fatigue_points  practice points before an attribute
+				                        tires (0 = off; DLL, Phase 3)
+				$shugyo_rest_hours      in-game hours from tired to fresh
 
 			The DLL REPLACES the effect group below with the numbers from
 			Settings.xml while the host loads buffs.xml, so a dedicated
@@ -139,6 +142,10 @@
 				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_magazine"     operation="set" value="0.25"/>
 				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_attribute" operation="set" value="0.025"/>
 				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_attribute" operation="set" value="0.025"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_fatigue_points" operation="set" value="60"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_fatigue_points" operation="set" value="60"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_rest_hours"     operation="set" value="6"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_rest_hours"     operation="set" value="6"/>
 			</effect_group>
 
 		</buff>
@@ -561,7 +568,9 @@
 				Every vanilla weapon and tool carries exactly one attribute tag
 				(attPerception on rifles and wrenches, attStrength on clubs and
 				pickaxes, ...), so one rule per attribute covers them all:
-				  kill holding that gear       1 point
+				  kill holding that gear       1 point x the victim's XP weight
+				                               (scale="victim": walker 1,
+				                               chicken 0.25, up to 2)
 				  block hit holding that gear  0.1 point
 				Plus:
 				  block upgrade                0.5 Strength
@@ -576,7 +585,7 @@
 			-->
 			<!-- gear tagged attPerception -> Perception -->
 			<effect_group>
-				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="1">
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attPerception"/>
 				</triggered_effect>
 				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="0.1">
@@ -586,7 +595,7 @@
 
 			<!-- gear tagged attStrength -> Strength -->
 			<effect_group>
-				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="1">
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attStrength"/>
 				</triggered_effect>
 				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="0.1">
@@ -596,7 +605,7 @@
 
 			<!-- gear tagged attFortitude -> Fortitude -->
 			<effect_group>
-				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="1">
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attFortitude"/>
 				</triggered_effect>
 				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="0.1">
@@ -606,7 +615,7 @@
 
 			<!-- gear tagged attAgility -> Agility -->
 			<effect_group>
-				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="1">
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attAgility"/>
 				</triggered_effect>
 				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="0.1">
@@ -616,12 +625,19 @@
 
 			<!-- gear tagged attIntellect -> Intellect -->
 			<effect_group>
-				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="1">
+				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attIntellect"/>
 				</triggered_effect>
 				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="0.1">
 					<requirement name="HoldingItemHasTags" tags="attIntellect"/>
 				</triggered_effect>
+			</effect_group>
+
+			<!-- Phase 3 anti-grind: drain practice fatigue with in-game time.
+			     The DLL works out the elapsed time itself, so the buff's
+			     one-second tick only has to call it. -->
+			<effect_group>
+				<triggered_effect trigger="onSelfBuffUpdate" action="ShugyoRest, KitsuneShugyo"/>
 			</effect_group>
 
 			<!-- block upgrades -> Strength -->

@@ -28,8 +28,10 @@ using HarmonyLib;
 // it. Its step is stored the same way and Shugyo_Attributes turns it back.
 //
 // `magazine` is different: it's already in levels (0.25 = a quarter of a level
-// per read). `share` is read by the server's DLL directly and never reaches
-// the buff.
+// per read). `share` (and its `range`) is read by the server's DLL directly
+// and never reaches the buff. `fatigue` and `rest` (Phase 3 anti-grind) are
+// baked as they are: practice points before an attribute tires, and in-game
+// hours to recover fully (see Shugyo_Fatigue).
 //
 // Settings.xml is re-read on every XML load, so in single player a change
 // takes effect on the next world load without restarting the game. On a
@@ -40,6 +42,10 @@ public static class Shugyo_Settings
     public const string DefaultPreset = "SLOW";
     public const float DefaultMagazine = 0.25f;
     public const float MaxMagazine = 10f;
+    public const float DefaultFatigue = 60f;
+    public const float DefaultRest = 6f;
+    public const float MaxRest = 240f;
+    public const float DefaultRange = 100f;
 
     // Actions-per-level keys, in the order buffShugyoPace seeds their steps;
     // keys are the Settings.xml attribute names.
@@ -54,7 +60,7 @@ public static class Shugyo_Settings
         { "FAST",   new float[] {  4f, 20f, 2f, 2f,  4f, 1f, 1f,  8f, 20f, 10f } },
     };
 
-    public enum ShareMode { Party, Off }
+    public enum ShareMode { Party, Nearby, Off }
 
     public static string ModPath;
 
@@ -63,6 +69,12 @@ public static class Shugyo_Settings
 
     public static float Magazine { get; private set; } = DefaultMagazine;
     public static ShareMode Share { get; private set; } = ShareMode.Party;
+    // Metres; only used by share="nearby".
+    public static float Range { get; private set; } = DefaultRange;
+    // Practice points an attribute takes before it tires (0 = never tires),
+    // and in-game hours for a fully tired attribute to recover.
+    public static float Fatigue { get; private set; } = DefaultFatigue;
+    public static float Rest { get; private set; } = DefaultRest;
 
     public static float Weapon => values[0];
     public static float Tool => values[1];
@@ -79,13 +91,14 @@ public static class Shugyo_Settings
 
     public static string StepVar(string key) => "$shugyo_step_" + key;
     public const string MagazineVar = "$shugyo_magazine";
+    public const string FatigueVar = "$shugyo_fatigue_points";
+    public const string RestVar = "$shugyo_rest_hours";
 
     public static void Load()
     {
         Preset = DefaultPreset;
         values = (float[])Presets[DefaultPreset].Clone();
-        Magazine = DefaultMagazine;
-        Share = ShareMode.Party;
+        ResetExtras();
         try
         {
             if (string.IsNullOrEmpty(ModPath)) return;
@@ -154,20 +167,24 @@ public static class Shugyo_Settings
             if (share.Length != 0)
             {
                 if (string.Equals(share, "party", StringComparison.OrdinalIgnoreCase)) Share = ShareMode.Party;
+                else if (string.Equals(share, "nearby", StringComparison.OrdinalIgnoreCase)) Share = ShareMode.Nearby;
                 else if (string.Equals(share, "off", StringComparison.OrdinalIgnoreCase)) Share = ShareMode.Off;
                 else
                 {
                     Log.Warning("[KitsuneShugyo] " + FileName + ": share=\"" + share
-                        + "\" is not party or off; keeping party.");
+                        + "\" is not party, nearby or off; keeping party.");
                 }
             }
+
+            Range = ReadNumber(root, "range", Range, 1f, 100000f, "a number of metres, 1 or more");
+            Fatigue = ReadNumber(root, "fatigue", Fatigue, 0f, 100000f, "a number of practice points, 0 (off) or more");
+            Rest = ReadNumber(root, "rest", Rest, 0.1f, MaxRest, "a number of in-game hours above 0 and up to " + Format(MaxRest));
         }
         catch (Exception ex)
         {
             Preset = DefaultPreset;
             values = (float[])Presets[DefaultPreset].Clone();
-            Magazine = DefaultMagazine;
-            Share = ShareMode.Party;
+            ResetExtras();
             Log.Warning("[KitsuneShugyo] Failed to read " + FileName + " (" + ex.Message + "); using the "
                 + DefaultPreset + " learning pace.");
         }
@@ -191,11 +208,43 @@ public static class Shugyo_Settings
             AddBoth(group, StepVar(Keys[i]), Step(values[i]));
         }
         AddBoth(group, MagazineVar, Precise(Magazine));
+        AddBoth(group, FatigueVar, Precise(Fatigue));
+        AddBoth(group, RestVar, Precise(Rest));
         buff.Add(group);
 
         Log.Out("[KitsuneShugyo] Learning pace " + Preset + ": " + string.Join(", ",
             Keys.Select((k, i) => k + " " + Format(values[i])))
-            + "; magazine " + Format(Magazine) + " level per read; share " + Share.ToString().ToLowerInvariant());
+            + "; magazine " + Format(Magazine) + " level per read; share " + ShareText()
+            + "; fatigue " + (Fatigue > 0f ? Format(Fatigue) + " points, rest " + Format(Rest) + " h" : "off"));
+    }
+
+    public static string ShareText()
+    {
+        string mode = Share.ToString().ToLowerInvariant();
+        return Share == ShareMode.Nearby ? mode + " (" + Format(Range) + " m)" : mode;
+    }
+
+    private static void ResetExtras()
+    {
+        Magazine = DefaultMagazine;
+        Share = ShareMode.Party;
+        Range = DefaultRange;
+        Fatigue = DefaultFatigue;
+        Rest = DefaultRest;
+    }
+
+    // An optional number attribute; out of range keeps `current` with a warning.
+    private static float ReadNumber(XElement root, string name, float current, float min, float max, string expected)
+    {
+        string raw = ((string)root.Attribute(name) ?? "").Trim();
+        if (raw.Length == 0) return current;
+        if (float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out float v) && v >= min && v <= max)
+        {
+            return v;
+        }
+        Log.Warning("[KitsuneShugyo] " + FileName + ": " + name + "=\"" + raw + "\" is not " + expected
+            + "; keeping " + Format(current) + ".");
+        return current;
     }
 
     // One action's share of a level, at full float precision ("0.###" would

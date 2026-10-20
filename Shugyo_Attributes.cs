@@ -28,6 +28,10 @@ using UnityEngine.Scripting;
 //     fresh loot containers, crafting, wiring, vehicle repairs, reading and
 //     trading.
 //
+// Phase 3 anti-grind: every point first goes through Shugyo_Fatigue (a tired
+// attribute learns at a quarter), kills are weighted by the victim's XP and
+// crafts by the recipe's craft XP (KillWeight, CraftWeight).
+//
 // Everything runs on the player's own client, the only place a player's
 // progression can change (the server takes the client's word for it, as it
 // does for vanilla's Buy button).
@@ -47,18 +51,60 @@ public static class Shugyo_Attributes
     // `attribute` scales them all, and these set how sources compare.
     public static class Points
     {
-        public const float Kill = 1f;          // kill holding gear tagged for the attribute
+        public const float Kill = 1f;          // kill holding gear tagged for the attribute (x victim weight)
         public const float BlockHit = 0.1f;    // block hit holding that gear
         public const float Upgrade = 0.5f;     // block upgrade (Strength)
         public const float DamageTaken = 0.5f; // hit by a zombie, animal or bandit (Fortitude)
         public const float Recovery = 10f;     // healed a sprain, break or infection (Fortitude)
         public const float SneakHit = 2f;      // sneak-attack hit (Agility)
         public const float Loot = 1f;          // fresh loot container (Perception)
-        public const float Craft = 1f;         // completed craft (Intellect)
+        public const float Craft = 1f;         // completed craft (Intellect; x recipe weight, see CraftWeight)
         public const float Wire = 1f;          // wire connection (Intellect)
         public const float Repair = 2f;        // vehicle repair (Intellect)
         public const float Read = 2f;          // magazine or perk book you read yourself (Intellect)
         public const float Trade = 1f;         // a purchase or sale at a trader (Intellect)
+    }
+
+    // Phase 3 anti-grind weights.
+    //
+    // A kill is weighted by the victim's vanilla XP, as vanilla's own XP is:
+    // a walker (500 XP) is 1, a chicken (130) a quarter, a feral or a bear
+    // up to 2. Chicken pens and spawner farms pay little.
+    public const float KillBaseXp = 500f;
+    public const float MinKillWeight = 0.25f;
+    public const float MaxKillWeight = 2f;
+
+    // A craft is weighted by the recipe's vanilla craft XP (craft_exp_gain,
+    // or 3 per ingredient unit by default): a stone axe (about 18) is 0.6,
+    // a forged-steel tool is 2. Crafting cheap things on repeat teaches little.
+    public const float CraftBaseXp = 30f;
+    public const float MinCraftWeight = 0.1f;
+    public const float MaxCraftWeight = 2f;
+    public const float MaxCraftPerCompletion = 5f;
+
+    public static float KillWeight(EntityAlive victim)
+    {
+        if (victim == null || victim.ExperienceValue <= 0) return 1f;
+        return Clamp(victim.ExperienceValue / KillBaseXp, MinKillWeight, MaxKillWeight);
+    }
+
+    public static float CraftWeight(Recipe recipe)
+    {
+        if (recipe == null) return 1f;
+        return Clamp(recipe.craftExpGain / CraftBaseXp, MinCraftWeight, MaxCraftWeight);
+    }
+
+    // Intellect for `units` crafts of one recipe, capped per completion so a
+    // big batch isn't a windfall.
+    public static void AddCraft(EntityPlayerLocal player, Recipe recipe, int units)
+    {
+        float points = Points.Craft * CraftWeight(recipe) * Math.Max(1, units);
+        Add(player, Intellect, Math.Min(points, MaxCraftPerCompletion));
+    }
+
+    private static float Clamp(float v, float min, float max)
+    {
+        return v < min ? min : (v > max ? max : v);
     }
 
     private static readonly Dictionary<string, string> Canonical = BuildCanonical(
@@ -123,6 +169,7 @@ public static class Shugyo_Attributes
             return 0;
         }
 
+        points = Shugyo_Fatigue.Apply(player, attribute, points);
         float basePoints = Base(player);
         float meter = player.Buffs.HasCustomVar(var) ? player.Buffs.GetCustomVar(var) : 0f;
         int oldLevel = value.Level;
@@ -163,14 +210,17 @@ public static class Shugyo_Attributes
 }
 
 // <triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo"
-//                   attribute="attStrength" points="1"/>
+//                   attribute="attStrength" points="1" scale="victim"/>
 // The XML half of attribute practice. Its own action (not ModifyCVar) because
 // each rank costs more than the last, which a fixed XML step can't express.
+// scale="victim" weights the points by the killed entity's XP (KillWeight);
+// on onSelfKilledOther the event's Other is the victim.
 [Preserve]
 public class MinEventActionShugyoPractice : MinEventActionTargetedBase
 {
     private string attribute;
     private float points = 1f;
+    private bool scaleByVictim;
 
     public override bool CanExecute(MinEventTypes _eventType, MinEventParams _params)
     {
@@ -186,7 +236,8 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
             {
                 if (targets[i] is EntityPlayerLocal player && !player.isEntityRemote)
                 {
-                    Shugyo_Attributes.Add(player, attribute, points);
+                    float weight = scaleByVictim ? Shugyo_Attributes.KillWeight(_params?.Other) : 1f;
+                    Shugyo_Attributes.Add(player, attribute, points * weight);
                 }
             }
         }
@@ -208,6 +259,9 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
                 break;
             case "points":
                 points = StringParsers.ParseFloat(_attribute.Value);
+                break;
+            case "scale":
+                scaleByVictim = string.Equals(_attribute.Value, "victim", StringComparison.OrdinalIgnoreCase);
                 break;
             }
         }

@@ -78,7 +78,7 @@ public class KitsuneShugyoInit : IModApi
         Shugyo_Settings.Load();
         Log.Out("[KitsuneShugyo] Applying Harmony patches (learning pace " + Shugyo_Settings.Preset
             + ", magazine " + Shugyo_Settings.Magazine.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            + " level per read, share " + Shugyo_Settings.Share.ToString().ToLowerInvariant() + "; set in Settings.xml)");
+            + " level per read, share " + Shugyo_Settings.ShareText() + "; set in Settings.xml)");
         new Harmony(GetType().ToString()).PatchAll(Assembly.GetExecutingAssembly());
     }
 }
@@ -103,7 +103,7 @@ public class Shugyo_GiveExpCraftPatch
             int events = (data.RecipeUsedCount > 0) ? data.RecipeUsedCount : 1;
             Shugyo_Practice.AddActions(__instance, "craftingWorkstations", events,
                 "station", Shugyo_Settings.Station);
-            Shugyo_Attributes.Add(__instance, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Craft);
+            Shugyo_Attributes.AddCraft(__instance, CraftingManager.GetRecipe(data.RecipeName), events);
         }
         catch (Exception ex)
         {
@@ -131,7 +131,7 @@ public class Shugyo_RecipeStackCraftPatch
             ItemValue itemValue = new ItemValue(recipe.itemValueType);
             ItemStack crafted = new ItemStack(itemValue, recipe.count);
             Shugyo_Craft.OnCraftComplete(player, crafted, recipe.GetName());
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Craft);
+            Shugyo_Attributes.AddCraft(player, recipe, 1);
         }
         catch (Exception ex)
         {
@@ -166,16 +166,23 @@ public class Shugyo_VehicleRepairPatch
 // Completed wire connection. ItemActionConnectPower calls this on the wiring
 // player's client; on dedicated servers it may also run server-side where
 // there is no primary player — the identity check filters that out.
+// A pair already wired this session counts once (see `wired`).
 [HarmonyPatch(typeof(TileEntityPowered))]
 [HarmonyPatch("SetParentWithWireTool")]
 public class Shugyo_WireToolPatch
 {
-    public static void Postfix(int wiringEntityID)
+    // Phase 3 anti-grind: each parent -> child pair teaches once per game
+    // session, so unplugging and reconnecting the same wire is no loop.
+    private static readonly HashSet<string> wired = new HashSet<string>();
+
+    public static void Postfix(TileEntityPowered __instance, IPowered newParentTE, int wiringEntityID)
     {
         try
         {
             EntityPlayerLocal player = GameManager.Instance?.World?.GetPrimaryPlayer();
             if (player == null || player.entityId != wiringEntityID) return;
+            if (__instance != null && newParentTE is TileEntity parent
+                && !wired.Add(parent.ToWorldPos() + ">" + __instance.ToWorldPos())) return;
             Shugyo_Practice.AddActions(player, "craftingElectrician", 1, "wire", Shugyo_Settings.Wire);
             Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Wire);
         }

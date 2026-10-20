@@ -338,8 +338,9 @@ public static class Shugyo_Share
         }
     }
 
-    // Every other party member: the listen host in-process, everyone else as a
-    // console line to their client. Returns how many were reached.
+    // Every other party member (within `range` metres for share="nearby"): the
+    // listen host in-process, everyone else as a console line to their client.
+    // Returns how many were reached.
     private static int SendToParty(EntityPlayer reader, Action<EntityPlayerLocal> applyHost, string clientLine)
     {
         Party party = reader?.Party;
@@ -351,6 +352,10 @@ public static class Shugyo_Share
         {
             EntityPlayer member = party.MemberList[i];
             if (member == null || member.entityId == reader.entityId) continue;
+            // share="nearby" (Phase 3 anti-grind): a party of parked alts
+            // doesn't learn from one reader across the map.
+            if (Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Nearby
+                && member.GetDistance(reader) > Shugyo_Settings.Range) continue;
 
             if (member is EntityPlayerLocal host)
             {

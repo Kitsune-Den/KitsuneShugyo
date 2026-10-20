@@ -44,9 +44,18 @@
 
 	  share      party (default): a magazine or perk book you read also
 	             teaches everyone in your party, wherever they are.
+	             nearby: only party members within `range` metres
+	             (default 100).
 	             off: nobody shares.
 
 	  <KitsuneShugyo preset="SLOW" magazine="0.5" share="off" />
+
+	Anti-grind: practice tires an attribute. After `fatigue` practice points
+	(default 60, about 60 walker kills) in a short time, that attribute
+	learns at a quarter until it rests; it recovers fully in `rest` in-game
+	hours (default 6). fatigue="0" turns this off. Crafting skills don't tire.
+
+	  <KitsuneShugyo preset="SLOW" fatigue="100" rest="4" share="nearby" range="150" />
 
 	Multiplayer: only the SERVER's copy of this file counts. It is baked into
 	the config the server sends every player. Restart the server after editing.
