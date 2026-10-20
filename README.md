@@ -26,7 +26,7 @@ SLOW, 40 salvage hits plus two Salvage Tools magazines are one level
 ## Settings.xml
 
 ```xml
-<KitsuneShugyo preset="SLOW" magazine="0.25" share="party" />
+<KitsuneShugyo preset="SLOW" magazine="0.25" share="party" fatigue="60" rest="6" />
 ```
 
 | Source | SLOW (default) | MEDIUM | FAST |
@@ -48,7 +48,10 @@ overridden on top of a preset, e.g. `<KitsuneShugyo preset="MEDIUM" weapon="24" 
 | Setting | Default | Meaning |
 |---|---|---|
 | `magazine` | 0.25 | Levels one magazine read adds to its skill. 1 = vanilla. |
-| `share` | `party` | `party`: magazines and perk books you read also teach your party, wherever they are. `off`: no sharing. |
+| `share` | `party` | `party`: magazines and perk books you read also teach your party, wherever they are. `nearby`: only party members within `range`. `off`: no sharing. |
+| `range` | 100 | Metres, for `share="nearby"`. |
+| `fatigue` | 60 | Practice points before an attribute tires (see Anti-grind). 0 turns fatigue off. |
+| `rest` | 6 | In-game hours for a tired attribute to recover fully. |
 
 - **Multiplayer:** only the server's `Settings.xml` counts. The DLL bakes it
   into the `buffs.xml` the server sends to every client, so players can't
@@ -69,20 +72,37 @@ rank 1 to 2 is 40 points and rank 9 to 10 is 360.
 
 | Practice | Attribute | Points |
 |---|---|---|
-| a kill holding gear tagged for the attribute (every vanilla weapon and tool has one) | rifles, spears, salvage tools, explosives: Perception · clubs, sledges, axes, picks, shovels: Strength · fists, knuckles, machine guns: Fortitude · knives, machetes, handguns, bows: Agility · batons, robotic sledge, turret, drone: Intellect | 1 |
-| a block hit holding that gear | same as above | 0.1 |
+| a kill holding gear tagged for the attribute (every vanilla weapon and tool has one), weighted by the victim's XP: a walker is 1, a chicken 0.25, ferals and bears up to 2 | rifles, spears, salvage tools, explosives: Perception · clubs, sledges, axes, picks, shovels: Strength · fists, knuckles, machine guns: Fortitude · knives, machetes, handguns, bows: Agility · batons, robotic sledge, turret, drone: Intellect | 1 |
+| a block hit holding that gear (not on blocks you placed this session) | same as above | 0.1 |
 | upgrading a block | Strength | 0.5 |
 | being hit by a zombie, animal or bandit (falls, fire and cactus don't count) | Fortitude | 0.5 |
 | healing a sprain, a splinted or cast limb, or curing an infection | Fortitude | 10 |
 | a sneak-attack hit | Agility | 2 |
 | opening a fresh loot container | Perception | 1 |
-| a completed craft (backpack or workstation) | Intellect | 1 |
-| a wire connection | Intellect | 1 |
+| a completed craft (backpack or workstation), weighted by the recipe's craft XP: a stone axe is about 0.6, a steel tool 2 (at most 5 per batch) | Intellect | 0.1–2 |
+| a wire connection (each pair once per session) | Intellect | 1 |
 | repairing a vehicle | Intellect | 2 |
 | reading a magazine or perk book yourself (shared reads don't count) | Intellect | 2 |
 | buying or selling at a trader or vending machine | Intellect | 1 |
 
 A rank-up shows a line like "Your Perception sharpens: rank 5."
+
+### Anti-grind
+
+Practice tires an attribute. Every point adds to that attribute's fatigue,
+and after `fatigue` points (60 by default) it's tired: practice counts at a
+quarter until it rests. It recovers fully in `rest` in-game hours (6 by
+default), measured in world time, so logging off on a running server counts
+as rest too. A long session still pays; a zombie farm or a place-and-break
+loop pays much less. You get one quiet line per attribute per session when
+it tires. Crafting skills don't tire.
+
+Smaller brakes: hitting blocks you placed yourself this session teaches no
+attribute (no place-and-break loops; upgrading them still counts), wiring
+the same pair of blocks again in one session teaches nothing, and
+`share="nearby"` keeps a party of parked alts from learning off one reader.
+
+Fatigue is `$shugyo_fatigue_<attribute>` (1 or more = tired), for UI mods.
 
 **Grandpa's Forgetting Elixir resets perks only.** It refunds the points you
 spent on perks and leaves attributes and their practice alone. (Vanilla
@@ -164,6 +184,10 @@ history) and folds in Kitsune Shared Magazines 0.2.3.
 
 0.2.0 (Phase 2): attributes from practice, skill points for perks only, and
 the Forgetting Elixir resets perks only.
+
+0.3.0 (Phase 3, anti-grind): practice fatigue, kills weighted by victim XP,
+crafts by recipe craft XP, no practice from blocks you placed, wire pairs
+once per session, `share="nearby"`.
 
 ## License
 
