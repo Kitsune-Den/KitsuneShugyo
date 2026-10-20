@@ -102,7 +102,7 @@ public static class Shugyo_Attributes
     public static void AddCraft(EntityPlayerLocal player, Recipe recipe, int units)
     {
         float points = Points.Craft * CraftWeight(recipe) * Math.Max(1, units);
-        Add(player, Intellect, Math.Min(points, MaxCraftPerCompletion));
+        Add(player, Intellect, Math.Min(points, MaxCraftPerCompletion), "craft");
     }
 
     private static float Clamp(float v, float min, float max)
@@ -157,8 +157,9 @@ public static class Shugyo_Attributes
     }
 
     // Adds `points` of practice to the attribute and ranks it up while the
-    // meter is full. Returns the ranks gained.
-    public static int Add(EntityPlayerLocal player, string attribute, float points)
+    // meter is full. Returns the ranks gained. `source` is recorded (see
+    // Shugyo_Practice.Track) after fatigue, so it's what actually counted.
+    public static int Add(EntityPlayerLocal player, string attribute, float points, string source)
     {
         if (!Enabled || player == null || player.isEntityRemote || player.Buffs == null || points <= 0f) return 0;
         ProgressionValue value = Attribute(player, attribute);
@@ -173,6 +174,8 @@ public static class Shugyo_Attributes
         }
 
         points = Shugyo_Fatigue.Apply(player, attribute, points);
+        Shugyo_Practice.Track(player, Canonical.TryGetValue(attribute, out string meterName) ? meterName : attribute,
+            source, points);
         float basePoints = Base(player);
         float meter = player.Buffs.HasCustomVar(var) ? player.Buffs.GetCustomVar(var) : 0f;
         int oldLevel = value.Level;
@@ -226,6 +229,7 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
     private float points = 1f;
     private bool scaleByVictim;
     private bool skipPlaced;
+    private string source;
 
     public override bool CanExecute(MinEventTypes _eventType, MinEventParams _params)
     {
@@ -243,7 +247,7 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
                 if (targets[i] is EntityPlayerLocal player && !player.isEntityRemote)
                 {
                     float weight = scaleByVictim ? Shugyo_Attributes.KillWeight(_params?.Other) : 1f;
-                    Shugyo_Attributes.Add(player, attribute, points * weight);
+                    Shugyo_Attributes.Add(player, attribute, points * weight, source);
                 }
             }
         }
@@ -268,6 +272,9 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
                 break;
             case "scale":
                 scaleByVictim = string.Equals(_attribute.Value, "victim", StringComparison.OrdinalIgnoreCase);
+                break;
+            case "source":
+                source = _attribute.Value;
                 break;
             case "skip_placed":
                 skipPlaced = StringParsers.ParseBool(_attribute.Value);
@@ -352,7 +359,7 @@ public class Shugyo_SneakHitPatch
     {
         try
         {
-            Shugyo_Attributes.Add(__instance, Shugyo_Attributes.Agility, Shugyo_Attributes.Points.SneakHit);
+            Shugyo_Attributes.Add(__instance, Shugyo_Attributes.Agility, Shugyo_Attributes.Points.SneakHit, "sneak");
         }
         catch (Exception ex)
         {
@@ -385,7 +392,7 @@ public class Shugyo_HeadshotKillPatch
             if (credited.Count > 1024) credited.Clear();
             if (!credited.Add(__instance.entityId)) return;
             Shugyo_Attributes.Add(player, Shugyo_Attributes.Perception,
-                Shugyo_Attributes.Points.Headshot * Shugyo_Attributes.KillWeight(__instance));
+                Shugyo_Attributes.Points.Headshot * Shugyo_Attributes.KillWeight(__instance), "headshot");
         }
         catch (Exception ex)
         {
@@ -426,7 +433,7 @@ public static class Shugyo_Stealth
             if (nearby[i] is EntityEnemy enemy && !enemy.IsDead() && !enemy.IsAlert
                 && (enemy.position - pos).sqrMagnitude <= Radius * Radius)
             {
-                Shugyo_Attributes.Add(player, Shugyo_Attributes.Agility, Shugyo_Attributes.Points.Sneaking);
+                Shugyo_Attributes.Add(player, Shugyo_Attributes.Agility, Shugyo_Attributes.Points.Sneaking, "stealth");
                 return;
             }
         }
@@ -463,7 +470,7 @@ public static class Shugyo_TradePractice
         try
         {
             EntityPlayerLocal player = GameManager.Instance?.World?.GetPrimaryPlayer();
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Trade);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Trade, "trade");
         }
         catch (Exception ex)
         {

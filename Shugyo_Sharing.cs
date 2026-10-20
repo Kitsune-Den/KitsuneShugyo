@@ -74,9 +74,9 @@ public class Shugyo_MagazineReadPatch
             EntityPlayerLocal player = Shugyo_Share.LocalTarget(__instance);
             if (player != null)
             {
-                int gained = Shugyo_Practice.Add(player, skill, reads * Shugyo_Practice.MagazineValue(player), "");
+                int gained = Shugyo_Practice.Add(player, skill, reads * Shugyo_Practice.MagazineValue(player), "", "magazine");
                 GameManager.ShowTooltip(player, Shugyo_Practice.Progress(player, skill, gained), false, false, 0f);
-                Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read);
+                Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read, "read");
                 Shugyo_Share.ReportRead(player, skill, reads);
             }
             return false;
@@ -121,7 +121,7 @@ public class Shugyo_BookReadHeldPatch
         {
             EntityPlayerLocal player = _actionData.invData.holdingEntity as EntityPlayerLocal;
             Shugyo_Share.HealSeriesOf(player, __state.Unlocks);
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read, "read");
             Shugyo_Share.ReportBook(player, __state.Unlocks, __state.GetItemName());
         }
         catch (Exception ex)
@@ -156,7 +156,7 @@ public class Shugyo_BookReadInstantPatch
         {
             EntityPlayerLocal player = ent as EntityPlayerLocal;
             Shugyo_Share.HealSeriesOf(player, __state.Unlocks);
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read, "read");
             Shugyo_Share.ReportBook(player, __state.Unlocks, __state.GetItemName());
         }
         catch (Exception ex)
@@ -387,7 +387,7 @@ public static class Shugyo_Share
     {
         ProgressionValue value = Shugyo_Practice.CraftingSkill(player, progressionName);
         if (value == null) return;
-        int gained = Shugyo_Practice.Add(player, progressionName, reads * Shugyo_Practice.MagazineValue(player), "");
+        int gained = Shugyo_Practice.Add(player, progressionName, reads * Shugyo_Practice.MagazineValue(player), "", "shared");
         GameManager.ShowTooltip(player, readerName + " shared a magazine. "
             + Shugyo_Practice.Progress(player, progressionName, gained), false, false, 0f);
     }

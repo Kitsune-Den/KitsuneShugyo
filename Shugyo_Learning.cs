@@ -154,7 +154,7 @@ public class Shugyo_VehicleRepairPatch
             EntityPlayerLocal player = _xui?.playerUI?.entityPlayer;
             if (player == null) return;
             Shugyo_Practice.AddActions(player, "craftingVehicles", 1, "vehicle", Shugyo_Settings.Vehicle);
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Repair);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Repair, "vehicle");
         }
         catch (Exception ex)
         {
@@ -184,7 +184,7 @@ public class Shugyo_WireToolPatch
             if (__instance != null && newParentTE is TileEntity parent
                 && !wired.Add(parent.ToWorldPos() + ">" + __instance.ToWorldPos())) return;
             Shugyo_Practice.AddActions(player, "craftingElectrician", 1, "wire", Shugyo_Settings.Wire);
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Wire);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Wire, "wire");
         }
         catch (Exception ex)
         {
@@ -207,7 +207,7 @@ public class Shugyo_LootOpenPatch
             EntityPlayerLocal player = __instance?.xui?.playerUI?.entityPlayer;
             if (player == null) return;
             Shugyo_Practice.AddActions(player, "craftingBackpack", 1, "loot", Shugyo_Settings.Loot);
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Perception, Shugyo_Attributes.Points.Loot);
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Perception, Shugyo_Attributes.Points.Loot, "loot");
         }
         catch (Exception ex)
         {

@@ -52,6 +52,8 @@ overridden on top of a preset, e.g. `<KitsuneShugyo preset="MEDIUM" weapon="24" 
 | `range` | 100 | Metres, for `share="nearby"`. |
 | `fatigue` | 60 | Practice points before an attribute tires (see Anti-grind). 0 turns fatigue off. |
 | `rest` | 6 | In-game hours for a tired attribute to recover fully. |
+| `points_after` | 0 (off) | A player level. Past it, skill points come only every `points_every` levels. |
+| `points_every` | 2 | With `points_after` set: a skill point every this many levels past it (2 = every other level). |
 
 - **Multiplayer:** only the server's `Settings.xml` counts. The DLL bakes it
   into the `buffs.xml` the server sends to every client, so players can't
@@ -105,6 +107,17 @@ the same pair of blocks again in one session teaches nothing, and
 `share="nearby"` keeps a party of parked alts from learning off one reader.
 
 Fatigue is `$shugyo_fatigue_<attribute>` (1 or more = tired), for UI mods.
+
+### Practice sources
+
+Every meter also records where its practice came from:
+`$shugyo_src_<meter>_<source>` totals what each source has added since 0.5.0
+(levels for crafting skills, points for attributes). Crafting-skill sources
+are the Settings.xml names (`weapon`, `tool`, `wreck`, `use`, `craft`,
+`station`, `vehicle`, `wire`, `loot`) plus `magazine` and `shared`;
+attribute sources are `kill`, `hit`, `upgrade`, `hurt`, `heal`, `sneak`,
+`stealth`, `headshot`, `loot`, `craft`, `wire`, `vehicle`, `read` and
+`trade`. KitsuneUI's Practice tab shows the top ones on hover.
 
 **Grandpa's Forgetting Elixir resets perks only.** It refunds the points you
 spent on perks and leaves attributes and their practice alone. (Vanilla
@@ -186,6 +199,11 @@ history) and folds in Kitsune Shared Magazines 0.2.3.
 
 0.2.0 (Phase 2): attributes from practice, skill points for perks only, and
 the Forgetting Elixir resets perks only.
+
+0.5.0: crafting-skill level-ups no longer multiply by vanilla's
+PointsPerMagazine sandbox option (the XML sources now level through the DLL),
+every meter records its practice sources, and an optional skill-point
+slowdown past a chosen level (`points_after`, `points_every`).
 
 0.4.0: headshot kills teach Perception and sneaking near unaware enemies
 teaches Agility, the two sources the design had that 0.2.0 left out.

@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Xml.Linq;
 using HarmonyLib;
+using UnityEngine.Scripting;
 
 // The practice meter: ONE CVar per crafting skill, $shugyo_<skill>, counting
 // in fractions of a level. Every source adds to it:
 //
-//   - Config/buffs.xml (kills, tool hits, food and medical use) adds the
-//     source's step, 1 / actions-per-level, and levels the skill itself when
-//     the meter reaches 1.
+//   - Config/buffs.xml (kills, tool hits, food and medical use) calls the
+//     ShugyoSkill action below, which adds one action of that source.
 //   - This DLL (crafting, workstations, vehicle repairs, wiring, looting) adds
 //     through Add(), which levels the skill the same way.
 //   - Magazines add Settings.xml's `magazine` value per read (0.25 = a
@@ -63,11 +64,36 @@ public static class Shugyo_Practice
     // station, vehicle, wire, loot). The step comes from the cvar the pace
     // buff seeds, so a dedicated server's settings win; the default is only a
     // fallback for the moment before that buff applies.
-    public static void AddActions(EntityPlayerLocal player, string progressionName, int count, string key,
-        float defaultActionsPerLevel)
+    // The key is also the source the practice is recorded under (Track).
+    // `levelUpMessage` replaces the default line shown when the skill levels.
+    public static int AddActions(EntityPlayerLocal player, string progressionName, int count, string key,
+        float defaultActionsPerLevel, string levelUpMessage = null)
     {
         float step = Step(player, key, defaultActionsPerLevel);
-        Add(player, progressionName, step * Math.Max(1, count), null);
+        if (string.IsNullOrEmpty(levelUpMessage))
+        {
+            return Add(player, progressionName, step * Math.Max(1, count), null, key);
+        }
+        int gained = Add(player, progressionName, step * Math.Max(1, count), "", key);
+        if (gained > 0) GameManager.ShowTooltip(player, levelUpMessage, false, false, 0f);
+        return gained;
+    }
+
+    // Where practice came from, for the Practice tab's "top sources":
+    // $shugyo_src_<meter>_<source> totals what each source has added to that
+    // meter (levels for crafting skills, practice points for attributes) since
+    // 0.5.0. Sources are short names: weapon, tool, wreck, use, craft,
+    // station, vehicle, wire, loot, magazine, shared for crafting skills;
+    // kill, hit, upgrade, hurt, heal, sneak, stealth, headshot, loot, craft,
+    // wire, vehicle, read, trade for attributes.
+    public const string SourcePrefix = "$shugyo_src_";
+
+    public static void Track(EntityPlayerLocal player, string meter, string source, float amount)
+    {
+        if (player?.Buffs == null || string.IsNullOrEmpty(source) || amount <= 0f) return;
+        string var = SourcePrefix + meter + "_" + source;
+        float total = player.Buffs.HasCustomVar(var) ? player.Buffs.GetCustomVar(var) : 0f;
+        player.Buffs.SetCustomVar(var, total + amount, true, CVarOperation.set);
     }
 
     public static float Step(EntityPlayerLocal player, string key, float defaultActionsPerLevel)
@@ -94,8 +120,9 @@ public static class Shugyo_Practice
 
     // Adds `levels` to the skill's meter and levels it while the meter is
     // full. Returns the levels gained. `tooltip` replaces the default
-    // level-up line; pass "" for silence.
-    public static int Add(EntityPlayerLocal player, string progressionName, float levels, string tooltip)
+    // level-up line; pass "" for silence. `source` is recorded (Track).
+    public static int Add(EntityPlayerLocal player, string progressionName, float levels, string tooltip,
+        string source = null)
     {
         ProgressionValue value = CraftingSkill(player, progressionName);
         if (value == null || player.Buffs == null || levels <= 0f) return 0;
@@ -111,6 +138,7 @@ public static class Shugyo_Practice
             return 0;
         }
 
+        Track(player, SkillName(progressionName), source, levels);
         float meter = (player.Buffs.HasCustomVar(var) ? player.Buffs.GetCustomVar(var) : 0f) + levels;
         int oldLevel = value.Level;
         while (meter >= Threshold && value.Level < cls.MaxLevel)
@@ -165,6 +193,68 @@ public static class Shugyo_Practice
             player.PlayerUI?.xui?.CollectedItemList?.AddCraftingSkillNotification(value);
             value.ProgressionClass.HandleCheckCrafting(player, oldLevel, value.Level);
         }
+    }
+}
+
+// <triggered_effect trigger="onSelfKilledOther" action="ShugyoSkill, KitsuneShugyo"
+//                   skill="craftingClubs" step="weapon" message="Your club crafting knowledge grows.">
+//     <requirement name="HoldingItemHasTags" tags="clubSkill"/>
+// </triggered_effect>
+// The XML half of crafting-skill practice: one action of the Settings.xml
+// source `step`, added through Add() like the DLL's own sources. Before 0.5.0
+// this was four XML lines per source ending in vanilla's AddProgressionLevel,
+// which multiplies a +1 by the PointsPerMagazine sandbox option, so a server
+// with that above 1 levelled every skill that many times per full meter.
+[Preserve]
+public class MinEventActionShugyoSkill : MinEventActionTargetedBase
+{
+    private string skill;
+    private string step;
+    private string message;
+
+    public override bool CanExecute(MinEventTypes _eventType, MinEventParams _params)
+    {
+        return base.CanExecute(_eventType, _params) && skill != null && step != null;
+    }
+
+    public override void Execute(MinEventParams _params)
+    {
+        if (targets == null || !Shugyo_Attributes.Enabled) return;
+        try
+        {
+            for (int i = 0; i < targets.Count; i++)
+            {
+                if (targets[i] is EntityPlayerLocal player && !player.isEntityRemote)
+                {
+                    Shugyo_Practice.AddActions(player, skill, 1, step, Shugyo_Settings.ActionsPerLevel(step), message);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] skill practice failed: " + ex);
+        }
+    }
+
+    public override bool ParseXmlAttribute(XAttribute _attribute)
+    {
+        bool flag = base.ParseXmlAttribute(_attribute);
+        if (!flag)
+        {
+            switch (_attribute.Name.LocalName)
+            {
+            case "skill":
+                skill = _attribute.Value;
+                break;
+            case "step":
+                step = _attribute.Value;
+                break;
+            case "message":
+                message = _attribute.Value;
+                break;
+            }
+        }
+        return flag;
     }
 }
 
