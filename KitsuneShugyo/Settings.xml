@@ -57,6 +57,13 @@
 
 	  <KitsuneShugyo preset="SLOW" fatigue="100" rest="4" share="nearby" range="150" />
 
+	Skill points (optional): attributes are earned by practice, so skill
+	points only buy perks and can pile up late in a game. points_after is a
+	player level (default 0 = off); past it, a skill point comes only every
+	points_every levels (default 2).
+
+	  <KitsuneShugyo preset="SLOW" points_after="100" points_every="2" />
+
 	Multiplayer: only the SERVER's copy of this file counts. It is baked into
 	the config the server sends every player. Restart the server after editing.
 

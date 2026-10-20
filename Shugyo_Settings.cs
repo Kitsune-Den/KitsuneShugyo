@@ -46,6 +46,7 @@ public static class Shugyo_Settings
     public const float DefaultRest = 6f;
     public const float MaxRest = 240f;
     public const float DefaultRange = 100f;
+    public const float DefaultPointsEvery = 2f;
 
     // Actions-per-level keys, in the order buffShugyoPace seeds their steps;
     // keys are the Settings.xml attribute names.
@@ -75,6 +76,10 @@ public static class Shugyo_Settings
     // and in-game hours for a fully tired attribute to recover.
     public static float Fatigue { get; private set; } = DefaultFatigue;
     public static float Rest { get; private set; } = DefaultRest;
+    // Optional: past player level PointsAfter (0 = off), skill points only
+    // every PointsEvery levels (see Shugyo_SkillPoints).
+    public static float PointsAfter { get; private set; }
+    public static float PointsEvery { get; private set; } = DefaultPointsEvery;
 
     public static float Weapon => values[0];
     public static float Tool => values[1];
@@ -85,6 +90,14 @@ public static class Shugyo_Settings
     public static float Wire => values[6];
     public static float Loot => values[7];
     public static float Wreck => values[8];
+
+    // Actions per level for a Settings.xml key (weapon, tool, ...), or 0 for
+    // an unknown key.
+    public static float ActionsPerLevel(string key)
+    {
+        int i = Array.IndexOf(Keys, key);
+        return i < 0 ? 0f : values[i];
+    }
     // Practice points per rank step for attributes: rank r -> r+1 costs
     // r x this (see Shugyo_Attributes). Stored as a step like the others.
     public static float Attribute => values[9];
@@ -179,6 +192,10 @@ public static class Shugyo_Settings
             Range = ReadNumber(root, "range", Range, 1f, 100000f, "a number of metres, 1 or more");
             Fatigue = ReadNumber(root, "fatigue", Fatigue, 0f, 100000f, "a number of practice points, 0 (off) or more");
             Rest = ReadNumber(root, "rest", Rest, 0.1f, MaxRest, "a number of in-game hours above 0 and up to " + Format(MaxRest));
+            PointsAfter = (float)Math.Floor(ReadNumber(root, "points_after", PointsAfter, 0f, 10000f,
+                "a player level, 0 (off) or more"));
+            PointsEvery = (float)Math.Floor(ReadNumber(root, "points_every", PointsEvery, 2f, 100f,
+                "a whole number from 2 to 100"));
         }
         catch (Exception ex)
         {
@@ -210,12 +227,17 @@ public static class Shugyo_Settings
         AddBoth(group, MagazineVar, Precise(Magazine));
         AddBoth(group, FatigueVar, Precise(Fatigue));
         AddBoth(group, RestVar, Precise(Rest));
+        AddBoth(group, Shugyo_SkillPointRatePatch.AfterVar, Precise(PointsAfter));
+        AddBoth(group, Shugyo_SkillPointRatePatch.EveryVar, Precise(PointsEvery));
         buff.Add(group);
 
         Log.Out("[KitsuneShugyo] Learning pace " + Preset + ": " + string.Join(", ",
             Keys.Select((k, i) => k + " " + Format(values[i])))
             + "; magazine " + Format(Magazine) + " level per read; share " + ShareText()
-            + "; fatigue " + (Fatigue > 0f ? Format(Fatigue) + " points, rest " + Format(Rest) + " h" : "off"));
+            + "; fatigue " + (Fatigue > 0f ? Format(Fatigue) + " points, rest " + Format(Rest) + " h" : "off")
+            + "; skill points " + (PointsAfter > 0f
+                ? "every " + Format(PointsEvery) + " levels past " + Format(PointsAfter)
+                : "vanilla"));
     }
 
     public static string ShareText()
@@ -231,6 +253,8 @@ public static class Shugyo_Settings
         Range = DefaultRange;
         Fatigue = DefaultFatigue;
         Rest = DefaultRest;
+        PointsAfter = 0f;
+        PointsEvery = DefaultPointsEvery;
     }
 
     // An optional number attribute; out of range keeps `current` with a warning.
