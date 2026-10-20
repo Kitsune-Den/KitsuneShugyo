@@ -571,7 +571,9 @@
 				  kill holding that gear       1 point x the victim's XP weight
 				                               (scale="victim": walker 1,
 				                               chicken 0.25, up to 2)
-				  block hit holding that gear  0.1 point
+				  block hit holding that gear  0.1 point, not on blocks you
+				                               placed this session
+				                               (skip_placed; see ShugyoPlaced)
 				Plus:
 				  block upgrade                0.5 Strength
 				  hit by a zombie, animal or
@@ -588,7 +590,7 @@
 				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attPerception"/>
 				</triggered_effect>
-				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="0.1">
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attPerception" points="0.1" skip_placed="true">
 					<requirement name="HoldingItemHasTags" tags="attPerception"/>
 				</triggered_effect>
 			</effect_group>
@@ -598,7 +600,7 @@
 				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attStrength"/>
 				</triggered_effect>
-				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="0.1">
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attStrength" points="0.1" skip_placed="true">
 					<requirement name="HoldingItemHasTags" tags="attStrength"/>
 				</triggered_effect>
 			</effect_group>
@@ -608,7 +610,7 @@
 				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attFortitude"/>
 				</triggered_effect>
-				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="0.1">
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attFortitude" points="0.1" skip_placed="true">
 					<requirement name="HoldingItemHasTags" tags="attFortitude"/>
 				</triggered_effect>
 			</effect_group>
@@ -618,7 +620,7 @@
 				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attAgility"/>
 				</triggered_effect>
-				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="0.1">
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attAgility" points="0.1" skip_placed="true">
 					<requirement name="HoldingItemHasTags" tags="attAgility"/>
 				</triggered_effect>
 			</effect_group>
@@ -628,7 +630,7 @@
 				<triggered_effect trigger="onSelfKilledOther" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="1" scale="victim">
 					<requirement name="HoldingItemHasTags" tags="attIntellect"/>
 				</triggered_effect>
-				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="0.1">
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShugyoPractice, KitsuneShugyo" attribute="attIntellect" points="0.1" skip_placed="true">
 					<requirement name="HoldingItemHasTags" tags="attIntellect"/>
 				</triggered_effect>
 			</effect_group>
@@ -638,6 +640,12 @@
 			     one-second tick only has to call it. -->
 			<effect_group>
 				<triggered_effect trigger="onSelfBuffUpdate" action="ShugyoRest, KitsuneShugyo"/>
+			</effect_group>
+
+			<!-- Phase 3 anti-grind: remember where you place blocks, so hitting
+			     them again teaches no attribute (place-and-break loops). -->
+			<effect_group>
+				<triggered_effect trigger="onSelfPlaceBlock" action="ShugyoPlaced, KitsuneShugyo"/>
 			</effect_group>
 
 			<!-- block upgrades -> Strength -->

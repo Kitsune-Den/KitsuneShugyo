@@ -214,13 +214,15 @@ public static class Shugyo_Attributes
 // The XML half of attribute practice. Its own action (not ModifyCVar) because
 // each rank costs more than the last, which a fixed XML step can't express.
 // scale="victim" weights the points by the killed entity's XP (KillWeight);
-// on onSelfKilledOther the event's Other is the victim.
+// on onSelfKilledOther the event's Other is the victim. skip_placed="true"
+// ignores hits on blocks the player placed this session (Shugyo_PlacedBlocks).
 [Preserve]
 public class MinEventActionShugyoPractice : MinEventActionTargetedBase
 {
     private string attribute;
     private float points = 1f;
     private bool scaleByVictim;
+    private bool skipPlaced;
 
     public override bool CanExecute(MinEventTypes _eventType, MinEventParams _params)
     {
@@ -230,6 +232,7 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
     public override void Execute(MinEventParams _params)
     {
         if (targets == null) return;
+        if (skipPlaced && Shugyo_PlacedBlocks.HittingPlaced()) return;
         try
         {
             for (int i = 0; i < targets.Count; i++)
@@ -262,6 +265,9 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
                 break;
             case "scale":
                 scaleByVictim = string.Equals(_attribute.Value, "victim", StringComparison.OrdinalIgnoreCase);
+                break;
+            case "skip_placed":
+                skipPlaced = StringParsers.ParseBool(_attribute.Value);
                 break;
             }
         }

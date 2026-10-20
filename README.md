@@ -73,7 +73,7 @@ rank 1 to 2 is 40 points and rank 9 to 10 is 360.
 | Practice | Attribute | Points |
 |---|---|---|
 | a kill holding gear tagged for the attribute (every vanilla weapon and tool has one), weighted by the victim's XP: a walker is 1, a chicken 0.25, ferals and bears up to 2 | rifles, spears, salvage tools, explosives: Perception · clubs, sledges, axes, picks, shovels: Strength · fists, knuckles, machine guns: Fortitude · knives, machetes, handguns, bows: Agility · batons, robotic sledge, turret, drone: Intellect | 1 |
-| a block hit holding that gear | same as above | 0.1 |
+| a block hit holding that gear (not on blocks you placed this session) | same as above | 0.1 |
 | upgrading a block | Strength | 0.5 |
 | being hit by a zombie, animal or bandit (falls, fire and cactus don't count) | Fortitude | 0.5 |
 | healing a sprain, a splinted or cast limb, or curing an infection | Fortitude | 10 |
@@ -97,9 +97,10 @@ as rest too. A long session still pays; a zombie farm or a place-and-break
 loop pays much less. You get one quiet line per attribute per session when
 it tires. Crafting skills don't tire.
 
-Two smaller brakes: wiring the same pair of blocks again in one session
-teaches nothing, and `share="nearby"` keeps a party of parked alts from
-learning off one reader.
+Smaller brakes: hitting blocks you placed yourself this session teaches no
+attribute (no place-and-break loops; upgrading them still counts), wiring
+the same pair of blocks again in one session teaches nothing, and
+`share="nearby"` keeps a party of parked alts from learning off one reader.
 
 Fatigue is `$shugyo_fatigue_<attribute>` (1 or more = tired), for UI mods.
 
@@ -185,7 +186,8 @@ history) and folds in Kitsune Shared Magazines 0.2.3.
 the Forgetting Elixir resets perks only.
 
 0.3.0 (Phase 3, anti-grind): practice fatigue, kills weighted by victim XP,
-crafts by recipe craft XP, wire pairs once per session, `share="nearby"`.
+crafts by recipe craft XP, no practice from blocks you placed, wire pairs
+once per session, `share="nearby"`.
 
 ## License
 
