@@ -78,6 +78,8 @@ rank 1 to 2 is 40 points and rank 9 to 10 is 360.
 | being hit by a zombie, animal or bandit (falls, fire and cactus don't count) | Fortitude | 0.5 |
 | healing a sprain, a splinted or cast limb, or curing an infection | Fortitude | 10 |
 | a sneak-attack hit | Agility | 2 |
+| crouch-moving within 8 m of an enemy that hasn't noticed you (sleepers count) | Agility | 0.05 a second |
+| a headshot kill on a zombie or hostile animal, any weapon, on top of the weapon's own attribute (so a rifle headshot kill counts double), weighted like kills | Perception | 1 |
 | opening a fresh loot container | Perception | 1 |
 | a completed craft (backpack or workstation), weighted by the recipe's craft XP: a stone axe is about 0.6, a steel tool 2 (at most 5 per batch) | Intellect | 0.1–2 |
 | a wire connection (each pair once per session) | Intellect | 1 |
@@ -184,6 +186,9 @@ history) and folds in Kitsune Shared Magazines 0.2.3.
 
 0.2.0 (Phase 2): attributes from practice, skill points for perks only, and
 the Forgetting Elixir resets perks only.
+
+0.4.0: headshot kills teach Perception and sneaking near unaware enemies
+teaches Agility, the two sources the design had that 0.2.0 left out.
 
 0.3.0 (Phase 3, anti-grind): practice fatigue, kills weighted by victim XP,
 crafts by recipe craft XP, no practice from blocks you placed, wire pairs

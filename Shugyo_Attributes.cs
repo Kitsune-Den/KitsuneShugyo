@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Xml.Linq;
 using HarmonyLib;
+using UnityEngine;
 using UnityEngine.Scripting;
 
 // Phase 2: attributes from practice. Skill points buy perks only.
@@ -24,9 +25,9 @@ using UnityEngine.Scripting;
 //   - Config/buffs.xml calls the ShugyoPractice action below (kills and block
 //     hits with tagged gear, block upgrades, damage taken, recovering from
 //     injuries and infection).
-//   - This DLL adds directly for what the XML can't see: sneak-attack hits,
-//     fresh loot containers, crafting, wiring, vehicle repairs, reading and
-//     trading.
+//   - This DLL adds directly for what the XML can't see: sneak-attack hits
+//     and sneaking near unaware enemies, headshot kills, fresh loot
+//     containers, crafting, wiring, vehicle repairs, reading and trading.
 //
 // Phase 3 anti-grind: every point first goes through Shugyo_Fatigue (a tired
 // attribute learns at a quarter), kills are weighted by the victim's XP and
@@ -57,6 +58,8 @@ public static class Shugyo_Attributes
         public const float DamageTaken = 0.5f; // hit by a zombie, animal or bandit (Fortitude)
         public const float Recovery = 10f;     // healed a sprain, break or infection (Fortitude)
         public const float SneakHit = 2f;      // sneak-attack hit (Agility)
+        public const float Headshot = 1f;      // headshot kill, any weapon (Perception; x victim weight)
+        public const float Sneaking = 0.05f;   // per second crouch-moving near an unaware enemy (Agility)
         public const float Loot = 1f;          // fresh loot container (Perception)
         public const float Craft = 1f;         // completed craft (Intellect; x recipe weight, see CraftWeight)
         public const float Wire = 1f;          // wire connection (Intellect)
@@ -354,6 +357,78 @@ public class Shugyo_SneakHitPatch
         catch (Exception ex)
         {
             Log.Error("[KitsuneShugyo] sneak practice failed: " + ex);
+        }
+    }
+}
+
+// Perception: a headshot kill, with any weapon (aiming is Perception), on top
+// of whatever the kill teaches the weapon's own attribute, so a rifle
+// headshot kill counts double, as the design has it. The kill event can't see
+// where the killing hit landed, but the victim's damage response does: it is
+// processed on the attacker's client (the same call that shows the sneak
+// banner) with Fatal and the body part hit. Each victim counts once.
+[HarmonyPatch(typeof(EntityAlive))]
+[HarmonyPatch("ProcessDamageResponseLocal")]
+public class Shugyo_HeadshotKillPatch
+{
+    private static readonly HashSet<int> credited = new HashSet<int>();
+
+    public static void Postfix(EntityAlive __instance, DamageResponse _dmResponse)
+    {
+        try
+        {
+            if (!Shugyo_Attributes.Enabled || __instance == null || !_dmResponse.Fatal) return;
+            if ((_dmResponse.HitBodyPart & EnumBodyPartHit.Head) == 0) return;
+            if (!(__instance is EntityEnemy)) return;
+            EntityPlayerLocal player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            if (player == null || player.entityId != _dmResponse.Source.getEntityId()) return;
+            if (credited.Count > 1024) credited.Clear();
+            if (!credited.Add(__instance.entityId)) return;
+            Shugyo_Attributes.Add(player, Shugyo_Attributes.Perception,
+                Shugyo_Attributes.Points.Headshot * Shugyo_Attributes.KillWeight(__instance));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] headshot practice failed: " + ex);
+        }
+    }
+}
+
+// Agility: crouch-moving within a few metres of an enemy that hasn't noticed
+// you (zombies' alert flag is replicated to clients; sleepers count). Checked
+// once a second from buffShugyoLearn's tick (ShugyoRest), so a minute of
+// real sneaking is 3 points, about three kills. Standing still doesn't count,
+// and fatigue covers circling a caged zombie.
+public static class Shugyo_Stealth
+{
+    public const float Radius = 8f;
+    private const float MinMove = 0.3f; // metres since the last tick
+
+    private static Vector3 lastPos;
+    private static int lastPlayer = -1;
+    private static readonly List<Entity> nearby = new List<Entity>();
+
+    public static void Tick(EntityPlayerLocal player)
+    {
+        if (player == null || player.isEntityRemote || player.IsDead()) return;
+        Vector3 pos = player.position;
+        bool moved = player.entityId == lastPlayer && (pos - lastPos).magnitude >= MinMove;
+        lastPos = pos;
+        lastPlayer = player.entityId;
+        if (!moved || !player.IsCrouching) return;
+
+        World world = GameManager.Instance?.World;
+        if (world == null) return;
+        nearby.Clear();
+        world.GetEntitiesInBounds(typeof(EntityEnemy), new Bounds(pos, Vector3.one * (Radius * 2f)), nearby);
+        for (int i = 0; i < nearby.Count; i++)
+        {
+            if (nearby[i] is EntityEnemy enemy && !enemy.IsDead() && !enemy.IsAlert
+                && (enemy.position - pos).sqrMagnitude <= Radius * Radius)
+            {
+                Shugyo_Attributes.Add(player, Shugyo_Attributes.Agility, Shugyo_Attributes.Points.Sneaking);
+                return;
+            }
         }
     }
 }

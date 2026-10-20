@@ -123,6 +123,7 @@ public static class Shugyo_Fatigue
 }
 
 // <triggered_effect trigger="onSelfBuffUpdate" action="ShugyoRest, KitsuneShugyo"/>
+// The once-a-second tick: drains fatigue, and checks sneaking (Shugyo_Stealth).
 [Preserve]
 public class MinEventActionShugyoRest : MinEventActionTargetedBase
 {
@@ -136,6 +137,7 @@ public class MinEventActionShugyoRest : MinEventActionTargetedBase
                 if (targets[i] is EntityPlayerLocal player && !player.isEntityRemote)
                 {
                     Shugyo_Fatigue.Rest(player);
+                    Shugyo_Stealth.Tick(player);
                 }
             }
         }
