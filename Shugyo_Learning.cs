@@ -74,6 +74,7 @@ public class KitsuneShugyoInit : IModApi
         }
 
         Shugyo_Attributes.Enabled = true;
+        Shugyo_Version.Mine = _modInstance.VersionString ?? "unknown";
         Shugyo_Settings.ModPath = _modInstance.Path;
         Shugyo_Settings.Load();
         Log.Out("[KitsuneShugyo] Applying Harmony patches (learning pace " + Shugyo_Settings.Preset

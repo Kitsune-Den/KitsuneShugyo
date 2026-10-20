@@ -197,6 +197,11 @@ public class Shugyo_ServerInboxPatch
         string cmd = __instance.cmd;
         bool isRead = cmd != null && cmd.StartsWith(Shugyo_Share.ReadVerb + " ", StringComparison.Ordinal);
         bool isBook = cmd != null && cmd.StartsWith(Shugyo_Share.BookVerb + " ", StringComparison.Ordinal);
+        if (cmd != null && cmd.StartsWith(Shugyo_Version.HelloVerb + " ", StringComparison.Ordinal))
+        {
+            Shugyo_Version.OnHello(__instance.Sender, cmd);
+            return false;
+        }
         if (!isRead && !isBook) return true;
         try
         {
@@ -222,6 +227,7 @@ public class Shugyo_ClientInboxPatch
         if (!__instance.bExecute || lines == null || lines.Count == 0 || lines[0] == null) return true;
         bool isApply = lines[0].StartsWith(Shugyo_Share.ApplyVerb + " ", StringComparison.Ordinal);
         bool isBook = lines[0].StartsWith(Shugyo_Share.BookApplyVerb + " ", StringComparison.Ordinal);
+        if (Shugyo_Version.HandleClientLine(_world, lines[0])) return false;
         if (!isApply && !isBook) return true;
         try
         {
