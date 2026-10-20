@@ -1,0 +1,544 @@
+<configs>
+
+	<!--
+		=====================================================================
+		 Kitsune Shugyo
+		=====================================================================
+
+		Two hidden permanent buffs, attached to the player in
+		Config/entityclasses.xml:
+
+		  buffShugyoPace   the practice steps (set from Settings.xml by the DLL).
+		  buffShugyoLearn  the learn-by-doing triggers.
+
+		THE PRACTICE METER: every crafting skill has ONE cvar,
+		$shugyo_<skill>, counting in fractions of a level. Each source adds
+		its step (1 / actions per level) and the skill levels when the meter
+		reaches 1. The DLL's sources (crafting, workstations, vehicle repairs,
+		wiring, looting) and magazine reads add to the SAME meter, so a skill
+		fed by several sources fills one bar.
+
+		Floats: 80 additions of 1/80 can land a hair under 1.0, so a level is
+		due at 0.999, the same threshold the DLL uses (Shugyo_Practice).
+
+		(Old saves: the Kitsune Learned Skills buffs buffKLSPace and
+		 buffKLSLearn no longer exist, and the game drops unknown buffs when it
+		 loads a save. The DLL carries KLS's partial counters over to the new
+		 meters once per character.)
+
+		=====================================================================
+		 WHY THIS LIVES ON A BUFF (Learned Skills 0.1.0 post-mortem)
+		=====================================================================
+
+		Learned Skills 0.1.0 hung these effect groups off the weapon/tool ITEMS
+		in items.xml, with a CVarCompare requirement at effect_group level.
+		That crashed the game at XML load time: building an ItemValue runs
+		CalcModSlotCount(), which evaluates item effect_group requirements with
+		NO player entity present, so CVarCompare dereferenced null and killed
+		the whole file parse. It silently took out recipes.xml, loot.xml,
+		traders.xml and challenges.xml while reporting zero patch warnings.
+
+		Two rules that keep us safe, both taken from vanilla's own patterns:
+		  1. Live on a BUFF, not on an item. Buffs always run in player
+		     context, so the item-construction path never touches us.
+		  2. Put <requirement> INSIDE the <triggered_effect>, never on the
+		     effect_group. Then it is only evaluated when the trigger fires.
+	-->
+
+	<!--
+		=====================================================================
+		 BOOTSTRAP - how the buffs get onto EXISTING characters.
+		=====================================================================
+
+		The Buffs list on the playerMale entity class is only applied when a
+		character is CREATED. Existing characters load their buff list from
+		their save file, so adding a buff to the class after a character
+		exists does nothing for them.
+
+		buffStatusCheck01 is vanilla's own hidden permanent buff, attached at
+		character creation, so it IS in every existing save. Piggybacking on
+		it re-adds our buffs on every login. AddBuff on an already-present
+		buff with stack_type ignore is a no-op, so this is safe to fire
+		repeatedly. New characters additionally get the buffs instantly from
+		the entityclasses.xml csv append.
+	-->
+	<append xpath="/buffs/buff[@name='buffStatusCheck01']">
+		<effect_group>
+			<triggered_effect trigger="onSelfEnteredGame" action="AddBuff" buff="buffShugyoPace"/>
+			<triggered_effect trigger="onSelfEnteredGame" action="AddBuff" buff="buffShugyoLearn"/>
+			<triggered_effect trigger="onSelfRespawn"     action="AddBuff" buff="buffShugyoPace"/>
+			<triggered_effect trigger="onSelfRespawn"     action="AddBuff" buff="buffShugyoLearn"/>
+		</effect_group>
+	</append>
+
+	<append xpath="/buffs">
+
+		<!--
+			=================================================================
+			 PACE CONTROL - set it in Settings.xml (mod folder root), not here.
+			=================================================================
+
+			Each cvar = the share of a level ONE action adds to the meter.
+			Settings.xml speaks in actions per level; the DLL stores
+			1 / that number here.
+
+				$shugyo_step_weapon  per kill holding that weapon type
+				$shugyo_step_tool    per block hit / repair with that tool type
+				$shugyo_step_use     per consumable used (food, medical)
+				$shugyo_step_craft   per item crafted (DLL, per UnlockedBy skill)
+				$shugyo_step_station per workstation queue completion (DLL)
+				$shugyo_step_vehicle per vehicle repair (DLL)
+				$shugyo_step_wire    per wire connection (DLL)
+				$shugyo_step_loot    per fresh loot container opened (DLL)
+				$shugyo_step_wreck   per salvage-tool hit on a vehicle wreck
+				$shugyo_magazine     levels per magazine read (DLL, shared)
+
+			The DLL REPLACES the effect group below with the numbers from
+			Settings.xml while the host loads buffs.xml, so a dedicated
+			server's Settings.xml is what every client gets. The group below
+			is only the SLOW fallback for a missing DLL. Editing it does
+			nothing while the DLL is loaded.
+
+			Re-applied on every world entry, so a change takes effect on your
+			next login, even on an existing character.
+
+			(Editors: XML comments cannot contain a double dash, so dividers
+			 here use equals signs. Keep it that way.)
+		-->
+		<buff name="buffShugyoPace" hidden="true" remove_on_death="false">
+			<stack_type value="ignore"/>
+
+			<!-- SLOW fallback; overwritten from Settings.xml by the DLL. -->
+			<effect_group>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_weapon"  operation="set" value="0.0625"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_weapon"  operation="set" value="0.0625"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_tool"    operation="set" value="0.0125"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_tool"    operation="set" value="0.0125"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_use"     operation="set" value="0.125"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_use"     operation="set" value="0.125"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_craft"   operation="set" value="0.125"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_craft"   operation="set" value="0.125"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_station" operation="set" value="0.0625"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_station" operation="set" value="0.0625"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_vehicle" operation="set" value="0.25"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_vehicle" operation="set" value="0.25"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_wire"    operation="set" value="0.25"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_wire"    operation="set" value="0.25"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_loot"    operation="set" value="0.033333333"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_loot"    operation="set" value="0.033333333"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_step_wreck"   operation="set" value="0.0125"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_step_wreck"   operation="set" value="0.0125"/>
+				<triggered_effect trigger="onSelfBuffStart"   action="ModifyCVar" cvar="$shugyo_magazine"     operation="set" value="0.25"/>
+				<triggered_effect trigger="onSelfEnteredGame" action="ModifyCVar" cvar="$shugyo_magazine"     operation="set" value="0.25"/>
+			</effect_group>
+
+		</buff>
+
+		<!--
+			=================================================================
+			 LEARN BY DOING - 17 sources
+			=================================================================
+
+			Pattern per source (order matters, effects fire in document order):
+			  1. add      the source's step to the skill's meter
+			              (gated only by which item is held)
+			  2. notify   the player            (meter full, skill not maxed)
+			  3. grant    +1 crafting level     (meter full, skill not maxed)
+			  4. subtract 1 from the meter      (meter full) - MUST BE LAST
+			Notify and grant both check "not maxed" BEFORE the grant, so the
+			level that reaches max still announces itself. At max the meter
+			just wraps: no message, no level.
+
+			Triggers used:
+			  onSelfKilledOther      weapons. Solid, used by vanilla buffs.
+			  onSelfDamagedBlock     harvesting, salvaging, wreck salvage.
+			  onSelfRepairBlock      repair tools. Documented by TFP but unused
+			                         in vanilla, so UNPROVEN. Safe failure.
+			  onSelfPrimaryActionEnd food + medical (consuming them).
+			  TriggerHasTags         on onSelfDamagedBlock checks the tags of the
+			                         block that was hit (vanilla uses it for
+			                         the church bell). Vehicles uses it to tell
+			                         a car wreck from any other salvage hit.
+
+			NOT COVERED HERE (handled by the DLL instead, see
+			Shugyo_Learning.cs): learn by crafting (every skill), workstation
+			queue completions, vehicle repairs, wire connections, spikes and
+			farm-plot gateway crafts, opening fresh loot containers, and
+			magazine reads (Shugyo_Sharing.cs).
+		-->
+		<buff name="buffShugyoLearn" hidden="true" remove_on_death="false">
+			<stack_type value="ignore"/>
+
+			<!-- clubSkill -> craftingClubs -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingClubs" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="clubSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your club crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="clubSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingClubs" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingClubs" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingClubs" level="1">
+					<requirement name="HoldingItemHasTags" tags="clubSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingClubs" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingClubs" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingClubs" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="clubSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingClubs" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- bladeSkill -> craftingBlades -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingBlades" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="bladeSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your blade crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="bladeSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingBlades" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingBlades" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingBlades" level="1">
+					<requirement name="HoldingItemHasTags" tags="bladeSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingBlades" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingBlades" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingBlades" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="bladeSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingBlades" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- spearSkill -> craftingSpears -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingSpears" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="spearSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your spear crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="spearSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSpears" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingSpears" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingSpears" level="1">
+					<requirement name="HoldingItemHasTags" tags="spearSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSpears" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingSpears" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingSpears" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="spearSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSpears" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- sledgeSkill -> craftingSledgehammers -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingSledgehammers" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="sledgeSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your sledgehammer crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="sledgeSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSledgehammers" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingSledgehammers" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingSledgehammers" level="1">
+					<requirement name="HoldingItemHasTags" tags="sledgeSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSledgehammers" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingSledgehammers" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingSledgehammers" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="sledgeSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSledgehammers" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- knuckleSkill -> craftingKnuckles -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingKnuckles" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="knuckleSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your knuckle crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="knuckleSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingKnuckles" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingKnuckles" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingKnuckles" level="1">
+					<requirement name="HoldingItemHasTags" tags="knuckleSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingKnuckles" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingKnuckles" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingKnuckles" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="knuckleSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingKnuckles" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- bowSkill -> craftingBows -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingBows" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="bowSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your archery crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="bowSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingBows" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingBows" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingBows" level="1">
+					<requirement name="HoldingItemHasTags" tags="bowSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingBows" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingBows" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingBows" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="bowSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingBows" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- handgunSkill -> craftingHandguns -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingHandguns" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="handgunSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your handgun crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="handgunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingHandguns" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingHandguns" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingHandguns" level="1">
+					<requirement name="HoldingItemHasTags" tags="handgunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingHandguns" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingHandguns" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingHandguns" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="handgunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingHandguns" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- shotgunSkill -> craftingShotguns -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingShotguns" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="shotgunSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your shotgun crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="shotgunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingShotguns" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingShotguns" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingShotguns" level="1">
+					<requirement name="HoldingItemHasTags" tags="shotgunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingShotguns" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingShotguns" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingShotguns" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="shotgunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingShotguns" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- rifleSkill -> craftingRifles -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingRifles" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="rifleSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your rifle crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="rifleSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingRifles" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingRifles" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingRifles" level="1">
+					<requirement name="HoldingItemHasTags" tags="rifleSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingRifles" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingRifles" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingRifles" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="rifleSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingRifles" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- machinegunSkill -> craftingMachineGuns -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingMachineGuns" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="machinegunSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your machine gun crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="machinegunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingMachineGuns" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingMachineGuns" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingMachineGuns" level="1">
+					<requirement name="HoldingItemHasTags" tags="machinegunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingMachineGuns" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingMachineGuns" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingMachineGuns" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="machinegunSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingMachineGuns" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- explosivesSkill -> craftingExplosives -->
+			<effect_group>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingExplosives" operation="add" value="@$shugyo_step_weapon">
+					<requirement name="HoldingItemHasTags" tags="explosivesSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ShowToolbeltMessage" message="Your explosives crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="explosivesSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingExplosives" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingExplosives" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="AddProgressionLevel" progression_name="craftingExplosives" level="1">
+					<requirement name="HoldingItemHasTags" tags="explosivesSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingExplosives" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingExplosives" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfKilledOther" action="ModifyCVar" cvar="$shugyo_craftingExplosives" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="explosivesSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingExplosives" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- harvestingSkill -> craftingHarvestingTools -->
+			<effect_group>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ModifyCVar" cvar="$shugyo_craftingHarvestingTools" operation="add" value="@$shugyo_step_tool">
+					<requirement name="HoldingItemHasTags" tags="harvestingSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShowToolbeltMessage" message="Your tool crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="harvestingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingHarvestingTools" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingHarvestingTools" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="AddProgressionLevel" progression_name="craftingHarvestingTools" level="1">
+					<requirement name="HoldingItemHasTags" tags="harvestingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingHarvestingTools" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingHarvestingTools" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ModifyCVar" cvar="$shugyo_craftingHarvestingTools" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="harvestingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingHarvestingTools" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- salvagingSkill -> craftingSalvageTools -->
+			<effect_group>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ModifyCVar" cvar="$shugyo_craftingSalvageTools" operation="add" value="@$shugyo_step_tool">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShowToolbeltMessage" message="Your salvage crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSalvageTools" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingSalvageTools" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="AddProgressionLevel" progression_name="craftingSalvageTools" level="1">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSalvageTools" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingSalvageTools" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ModifyCVar" cvar="$shugyo_craftingSalvageTools" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingSalvageTools" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!--
+			salvagingSkill on a vehicle wreck -> craftingVehicles
+			Vanilla tags every car, truck, bus and forklift wreck with
+			challenge_cars (the "harvest engines from cars" challenges use
+			it). A few deco blocks share the tag (air conditioners, house
+			and car radiators); they count too. The same hit still feeds
+			Salvage Tools through the group above.
+			-->
+			<effect_group>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ModifyCVar" cvar="$shugyo_craftingVehicles" operation="add" value="@$shugyo_step_wreck">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+					<requirement name="TriggerHasTags" tags="challenge_cars"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ShowToolbeltMessage" message="Your vehicle crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+					<requirement name="TriggerHasTags" tags="challenge_cars"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingVehicles" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingVehicles" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="AddProgressionLevel" progression_name="craftingVehicles" level="1">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+					<requirement name="TriggerHasTags" tags="challenge_cars"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingVehicles" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingVehicles" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfDamagedBlock" action="ModifyCVar" cvar="$shugyo_craftingVehicles" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="salvagingSkill"/>
+					<requirement name="TriggerHasTags" tags="challenge_cars"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingVehicles" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- repairingSkill -> craftingRepairTools -->
+			<effect_group>
+				<triggered_effect trigger="onSelfRepairBlock" action="ModifyCVar" cvar="$shugyo_craftingRepairTools" operation="add" value="@$shugyo_step_tool">
+					<requirement name="HoldingItemHasTags" tags="repairingSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfRepairBlock" action="ShowToolbeltMessage" message="Your repair crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="repairingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingRepairTools" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingRepairTools" operation="LT" value="50"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfRepairBlock" action="AddProgressionLevel" progression_name="craftingRepairTools" level="1">
+					<requirement name="HoldingItemHasTags" tags="repairingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingRepairTools" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingRepairTools" operation="LT" value="50"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfRepairBlock" action="ModifyCVar" cvar="$shugyo_craftingRepairTools" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="repairingSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingRepairTools" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- foodSkill -> craftingFood -->
+			<effect_group>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="ModifyCVar" cvar="$shugyo_craftingFood" operation="add" value="@$shugyo_step_use">
+					<requirement name="HoldingItemHasTags" tags="foodSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="ShowToolbeltMessage" message="Your cooking crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="foodSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingFood" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingFood" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="AddProgressionLevel" progression_name="craftingFood" level="1">
+					<requirement name="HoldingItemHasTags" tags="foodSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingFood" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingFood" operation="LT" value="100"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="ModifyCVar" cvar="$shugyo_craftingFood" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="foodSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingFood" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+			<!-- medicalSkill -> craftingMedical -->
+			<effect_group>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="ModifyCVar" cvar="$shugyo_craftingMedical" operation="add" value="@$shugyo_step_use">
+					<requirement name="HoldingItemHasTags" tags="medicalSkill"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="ShowToolbeltMessage" message="Your medical crafting knowledge grows.">
+					<requirement name="HoldingItemHasTags" tags="medicalSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingMedical" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingMedical" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="AddProgressionLevel" progression_name="craftingMedical" level="1">
+					<requirement name="HoldingItemHasTags" tags="medicalSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingMedical" operation="GTE" value="0.999"/>
+					<requirement name="ProgressionLevel" progression_name="craftingMedical" operation="LT" value="75"/>
+				</triggered_effect>
+				<triggered_effect trigger="onSelfPrimaryActionEnd" action="ModifyCVar" cvar="$shugyo_craftingMedical" operation="subtract" value="1">
+					<requirement name="HoldingItemHasTags" tags="medicalSkill"/>
+					<requirement name="CVarCompare" cvar="$shugyo_craftingMedical" operation="GTE" value="0.999"/>
+				</triggered_effect>
+			</effect_group>
+
+		</buff>
+
+	</append>
+
+</configs>
