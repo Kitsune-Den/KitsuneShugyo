@@ -120,3 +120,7 @@ and doesn't start.
 
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history) and folds in Kitsune Shared Magazines 0.2.3.
+
+## License
+
+[CC BY-NC-SA 4.0](LICENSE), with an extra permission for servers that make money: see [NOTICE.md](NOTICE.md). In short: play it, change it and share it, with credit, not for sale, and with changed versions under the same license.
