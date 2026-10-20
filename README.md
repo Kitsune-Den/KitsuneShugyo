@@ -16,6 +16,12 @@ Shared Magazines**. Remove both before installing it (see Upgrading).
 Built for 7DTD 3.3. Requires EAC off (ships a DLL). Install on the server
 **and every client**.
 
+To see your practice, add **KitsuneUI_Practice** (part of
+[KitsuneUI](https://github.com/Kitsune-Den/KitsuneUI), optional): a
+Practice tab with a bar for every attribute and crafting skill, and practice
+bars instead of Buy buttons on the attribute screen. In multiplayer it goes
+on the server too, with KitsuneUI.
+
 ## The practice meter
 
 Every crafting skill has one bar. Each thing you do fills part of it, and the
@@ -169,7 +175,7 @@ and nobody is dropped.
 
 ## Upgrading
 
-**From Kitsune Shugyō 0.1.x:** install over it. Attribute ranks your
+**From a Kitsune Shugyō test build (0.x):** install over it. Attribute ranks your
 characters bought are kept, the points spent on them stay spent, and practice
 starts from there toward the next rank.
 
@@ -195,10 +201,11 @@ and doesn't start.
 ## History
 
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
-history) and folds in Kitsune Shared Magazines 0.2.3.
+history, so its old v0.7.0 to v0.10.0 tags are Learned Skills releases) and
+folds in Kitsune Shared Magazines 0.2.3.
 
-0.2.0 (Phase 2): attributes from practice, skill points for perks only, and
-the Forgetting Elixir resets perks only.
+1.0.0: the first release, everything below. The 0.x versions were never
+released on their own.
 
 0.5.0: crafting-skill level-ups no longer multiply by vanilla's
 PointsPerMagazine sandbox option (the XML sources now level through the DLL),
@@ -211,6 +218,12 @@ teaches Agility, the two sources the design had that 0.2.0 left out.
 0.3.0 (Phase 3, anti-grind): practice fatigue, kills weighted by victim XP,
 crafts by recipe craft XP, no practice from blocks you placed, wire pairs
 once per session, `share="nearby"`.
+
+0.2.0 (Phase 2): attributes from practice, skill points for perks only, and
+the Forgetting Elixir resets perks only.
+
+0.1.0 (Phase 1): one practice meter per crafting skill, magazines back as a
+boost shared with the party, Learned Skills progress carried over.
 
 ## License
 
