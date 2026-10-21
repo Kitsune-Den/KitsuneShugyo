@@ -42,6 +42,14 @@ public static class Shugyo_Practice
         return map;
     }
 
+    // Every crafting skill, in vanilla spelling (for the shugyo command).
+    public static IEnumerable<string> SkillNames => Canonical.Values;
+
+    public static bool IsSkill(string progressionName)
+    {
+        return progressionName != null && Canonical.ContainsKey(progressionName);
+    }
+
     public static string SkillName(string progressionName)
     {
         return Canonical.TryGetValue(progressionName, out string name) ? name : progressionName;

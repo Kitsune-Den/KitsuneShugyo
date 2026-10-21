@@ -173,6 +173,29 @@ Under the hood, a read rides three vanilla console packages (reader to server
 to party), so a player or server without the mod just sees "unknown command"
 and nobody is dropped.
 
+## Admin command
+
+`shugyo` in the F1 console (or the server console / telnet). Admin-only by
+default; serveradmin.xml can open it up like any command.
+
+| Command | What it does |
+|---|---|
+| `shugyo version` | This server's Kitsune Shugyō version, and the version each player's game reported |
+| `shugyo status [player]` | Every attribute and crafting skill: rank or level, % to the next, fatigue, top practice sources. Without a player, yourself |
+| `shugyo give <player> <meter> <amount>` | Add practice. Attributes (`attStrength`, ...) take points, where a walker kill is 1; crafting skills (`craftingClubs`, ...) take levels, so 0.5 is half a level. Ignores fatigue and isn't counted as a source |
+| `shugyo rest <player>` | Clear that player's fatigue |
+
+`<player>` is a name, entity id or platform id.
+
+## Version check
+
+When a player joins, the server tells their game which Kitsune Shugyō it
+runs. If the two differ, the player sees "This server runs Kitsune Shugyō X
+and you have Y" on screen, and the server logs a warning naming them.
+Mismatched versions can make practice silently not count, because the
+server's config may use parts of Shugyō the player's copy doesn't have. Games
+older than 1.1.0 can't answer, so `shugyo version` lists them as "no reply".
+
 ## Upgrading
 
 **From a Kitsune Shugyō test build (0.x):** install over it. Attribute ranks your
@@ -203,6 +226,9 @@ and doesn't start.
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history, so its old v0.7.0 to v0.10.0 tags are Learned Skills releases) and
 folds in Kitsune Shared Magazines 0.2.3.
+
+1.1.0: the `shugyo` admin command (version, status, give, rest) and a
+version check when a player joins.
 
 1.0.0: the first release, everything below. The 0.x versions were never
 released on their own.

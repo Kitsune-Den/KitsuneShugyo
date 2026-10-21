@@ -131,6 +131,9 @@ public static class Shugyo_Attributes
         return map;
     }
 
+    // The five attributes, in vanilla spelling.
+    public static IEnumerable<string> Names => Canonical.Values;
+
     public static bool IsPracticed(string progressionName)
     {
         return progressionName != null && Canonical.ContainsKey(progressionName);
@@ -159,7 +162,7 @@ public static class Shugyo_Attributes
     // Adds `points` of practice to the attribute and ranks it up while the
     // meter is full. Returns the ranks gained. `source` is recorded (see
     // Shugyo_Practice.Track) after fatigue, so it's what actually counted.
-    public static int Add(EntityPlayerLocal player, string attribute, float points, string source)
+    public static int Add(EntityPlayerLocal player, string attribute, float points, string source, bool tire = true)
     {
         if (!Enabled || player == null || player.isEntityRemote || player.Buffs == null || points <= 0f) return 0;
         ProgressionValue value = Attribute(player, attribute);
@@ -173,7 +176,7 @@ public static class Shugyo_Attributes
             return 0;
         }
 
-        points = Shugyo_Fatigue.Apply(player, attribute, points);
+        if (tire) points = Shugyo_Fatigue.Apply(player, attribute, points);
         Shugyo_Practice.Track(player, Canonical.TryGetValue(attribute, out string meterName) ? meterName : attribute,
             source, points);
         float basePoints = Base(player);
