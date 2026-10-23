@@ -300,19 +300,44 @@ public static class Shugyo_Share
             .Setup(ReadVerb + " " + progressionName + " " + reads));
     }
 
-    // Server side: "shugyo_read <skill> <reads>" from a client.
+    // Server side: "shugyo_read <skill> <reads>" from a client. Every report is
+    // logged, shared or not (Maltaine, 2026-10-23: a party read nothing in the
+    // log, and "never reached the server" looked the same as "nobody to share
+    // with"). A report that reaches no one says why; a malformed one is a warning.
     public static void OnReadReport(World world, ClientInfo sender, string cmd)
     {
         if (sender == null) return;
         string[] parts = cmd.Split(' ');
-        if (parts.Length != 3 || !int.TryParse(parts[2], out int reads)) return;
-        if (reads < 1 || reads > MaxReadsPerReport) return;
+        if (parts.Length != 3 || !int.TryParse(parts[2], out int reads) || reads < 1 || reads > MaxReadsPerReport)
+        {
+            Log.Warning("[KitsuneShugyo] Ignored a malformed read report from " + sender.playerName + ": " + cmd);
+            return;
+        }
 
         EntityPlayer reader = world.GetEntity(sender.entityId) as EntityPlayer;
-        if (Shugyo_Practice.CraftingSkill(reader, parts[1]) == null) return;
+        if (Shugyo_Practice.CraftingSkill(reader, parts[1]) == null)
+        {
+            Log.Warning("[KitsuneShugyo] Ignored a read report from " + sender.playerName + ": " + parts[1]
+                + " isn't a crafting skill here");
+            return;
+        }
 
         if (!TakeReportSlot(sender)) return;
-        Share(reader, sender.playerName, parts[1], reads);
+        if (Share(reader, sender.playerName, parts[1], reads) <= 0)
+        {
+            Log.Out("[KitsuneShugyo] " + sender.playerName + " read a " + parts[1] + " magazine (x" + reads
+                + "), not shared: " + NotSharedReason(reader));
+        }
+    }
+
+    // Why a read reached no one: sharing off, no party, or nobody to give it to.
+    private static string NotSharedReason(EntityPlayer reader)
+    {
+        if (Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Off) return "sharing is off in Settings.xml";
+        if (reader?.Party?.MemberList == null || reader.Party.MemberList.Count < 2) return "not in a party";
+        return Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Nearby
+            ? "no other party member online within " + Shugyo_Settings.Range + " m"
+            : "no other party member online";
     }
 
     // Reading a magazine or a book takes about a second, so a faster stream of
@@ -330,9 +355,10 @@ public static class Shugyo_Share
     }
 
     // Server (or listen host): send the read to every other party member.
-    public static void Share(EntityPlayer reader, string readerName, string progressionName, int reads)
+    // Returns how many it reached (0 when sharing is off).
+    public static int Share(EntityPlayer reader, string readerName, string progressionName, int reads)
     {
-        if (Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Off) return;
+        if (Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Off) return 0;
         int shared = SendToParty(reader,
             host => Apply(host, progressionName, reads, readerName),
             ApplyVerb + " " + progressionName + " " + reads + " " + readerName);
@@ -342,6 +368,7 @@ public static class Shugyo_Share
             Log.Out("[KitsuneShugyo] " + readerName + " read a " + progressionName + " magazine (x" + reads
                 + "), shared with " + shared + " party member(s)");
         }
+        return shared;
     }
 
     // Every other party member (within `range` metres for share="nearby"): the
@@ -437,22 +464,36 @@ public static class Shugyo_Share
     {
         if (sender == null) return;
         string[] parts = cmd.Split(' ');
-        if (parts.Length != 3) return;
+        if (parts.Length != 3)
+        {
+            Log.Warning("[KitsuneShugyo] Ignored a malformed book report from " + sender.playerName + ": " + cmd);
+            return;
+        }
 
         // The named item must really be the book for that perk, and the
         // reader must really have it now.
         ItemClass book = ItemClass.GetItemClass(parts[2]);
-        if (book == null || !string.Equals(book.Unlocks, parts[1], StringComparison.OrdinalIgnoreCase)) return;
         EntityPlayer reader = world.GetEntity(sender.entityId) as EntityPlayer;
-        if (Book(reader, parts[1]) == null) return;
+        if (book == null || !string.Equals(book.Unlocks, parts[1], StringComparison.OrdinalIgnoreCase)
+            || Book(reader, parts[1]) == null)
+        {
+            Log.Warning("[KitsuneShugyo] Ignored a book report from " + sender.playerName + ": " + parts[2]
+                + " (" + parts[1] + ") isn't a book they have");
+            return;
+        }
 
         if (!TakeReportSlot(sender)) return;
-        ShareBook(reader, sender.playerName, parts[1], parts[2]);
+        if (ShareBook(reader, sender.playerName, parts[1], parts[2]) <= 0)
+        {
+            Log.Out("[KitsuneShugyo] " + sender.playerName + " read " + parts[2] + ", not shared: "
+                + NotSharedReason(reader));
+        }
     }
 
-    public static void ShareBook(EntityPlayer reader, string readerName, string perkName, string bookItem)
+    // Returns how many party members it reached (0 when sharing is off).
+    public static int ShareBook(EntityPlayer reader, string readerName, string perkName, string bookItem)
     {
-        if (Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Off) return;
+        if (Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Off) return 0;
         int shared = SendToParty(reader,
             host => ApplyBook(host, perkName, bookItem, readerName),
             BookApplyVerb + " " + perkName + " " + bookItem + " " + readerName);
@@ -462,6 +503,7 @@ public static class Shugyo_Share
             Log.Out("[KitsuneShugyo] " + readerName + " read " + bookItem + ", shared with "
                 + shared + " party member(s)");
         }
+        return shared;
     }
 
     // Member side: "shugyo_bookapply <perk> <book item> <reader name...>".

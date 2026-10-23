@@ -196,6 +196,18 @@ Mismatched versions can make practice silently not count, because the
 server's config may use parts of Shugyō the player's copy doesn't have. Games
 older than 1.1.0 can't answer, so `shugyo version` lists them as "no reply".
 
+A game that hasn't answered after 30 seconds isn't running Shugyō at all (not
+installed, or switched off by one of the old mods below), and the server logs a
+warning naming the player: their practice and shared reads won't count.
+
+## Server log for sharing
+
+Every read a player reports is in the server log: "X read a Y magazine,
+shared with N party member(s)", or "not shared" with the reason (not in a
+party, no other member online or in range, sharing off). A report the server
+refuses is logged as a warning. So when a party says reading isn't shared, the
+log shows whether the reads arrived at all.
+
 ## Upgrading
 
 **From a Kitsune Shugyō test build (0.x):** install over it. Attribute ranks your
@@ -211,7 +223,8 @@ the old buffs and counters are cleared.
 `KitsuneSharedMagazines` or `KitsuneSharedReading` folder. Sharing is built in.
 
 If any of these old mods is still installed, Kitsune Shugyō logs an error naming it
-and doesn't start.
+and doesn't start. The player also sees it on screen and in chat a few seconds
+after loading into a world, with which folder to remove.
 
 ## Layout
 
@@ -226,6 +239,10 @@ and doesn't start.
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history, so its old v0.7.0 to v0.10.0 tags are Learned Skills releases) and
 folds in Kitsune Shared Magazines 0.2.3.
+
+1.1.1: the server logs every read report, shared or not and why, and players
+whose game doesn't answer the version check; players see on screen when Shugyō
+is switched off by an old mod.
 
 1.1.0: the `shugyo` admin command (version, status, give, rest) and a
 version check when a player joins.

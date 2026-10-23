@@ -69,6 +69,7 @@ public class KitsuneShugyoInit : IModApi
             {
                 Log.Error("[KitsuneShugyo] " + other + " is installed. Kitsune Shugyo replaces it: remove the "
                     + other + " folder from Mods on the server and every client. Kitsune Shugyo is NOT running.");
+                Shugyo_ConflictNotice.Show(other);
                 return;
             }
         }
@@ -81,6 +82,7 @@ public class KitsuneShugyoInit : IModApi
             + ", magazine " + Shugyo_Settings.Magazine.ToString(System.Globalization.CultureInfo.InvariantCulture)
             + " level per read, share " + Shugyo_Settings.ShareText() + "; set in Settings.xml)");
         new Harmony(GetType().ToString()).PatchAll(Assembly.GetExecutingAssembly());
+        ModEvents.GameUpdate.RegisterHandler(Shugyo_Version.CheckReplies);
     }
 }
 
