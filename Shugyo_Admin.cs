@@ -20,7 +20,9 @@ using HarmonyLib;
 //   3. Server: records the reply, and logs a warning on a mismatch.
 //
 // A client without Shugyo, or older than 1.1.0, never replies: `shugyo
-// version` lists it as "no reply". A server without Shugyo never asks.
+// version` lists it as "no reply", and after 30 s the server logs a warning
+// too, since that player's reads and practice never reach it. A server without
+// Shugyo never asks.
 public static class Shugyo_Version
 {
     public const string VersionVerb = "shugyo_version";
@@ -37,19 +39,51 @@ public static class Shugyo_Version
         return clientVersions.TryGetValue(entityId, out string v) ? v : null;
     }
 
+    // Asked, not answered yet: entityId -> (client, when asked).
+    private const float ReplySeconds = 30f;
+    private static readonly Dictionary<int, KeyValuePair<ClientInfo, float>> waiting =
+        new Dictionary<int, KeyValuePair<ClientInfo, float>>();
+
     // Step 1.
     public static void AskClient(ClientInfo client)
     {
         if (client == null) return;
         clientVersions.Remove(client.entityId);
+        waiting[client.entityId] = new KeyValuePair<ClientInfo, float>(client, UnityEngine.Time.realtimeSinceStartup);
         client.SendPackage(NetPackageManager.GetPackage<NetPackageConsoleCmdClient>()
             .Setup(VersionVerb + " " + Mine, true));
+    }
+
+    // Every game update on the server: a client that hasn't answered in 30 s
+    // isn't running Shugyo (Maltaine, 2026-10-23: no practice and no shared
+    // reads, and the log said nothing). Logged once; a player who left is skipped.
+    public static void CheckReplies(ref ModEvents.SGameUpdateData _data)
+    {
+        if (waiting.Count == 0) return;
+        float now = UnityEngine.Time.realtimeSinceStartup;
+        List<int> due = null;
+        foreach (KeyValuePair<int, KeyValuePair<ClientInfo, float>> entry in waiting)
+        {
+            if (now - entry.Value.Value >= ReplySeconds) (due ?? (due = new List<int>())).Add(entry.Key);
+        }
+        if (due == null) return;
+        ConnectionManager connections = SingletonMonoBehaviour<ConnectionManager>.Instance;
+        foreach (int entityId in due)
+        {
+            ClientInfo client = waiting[entityId].Key;
+            waiting.Remove(entityId);
+            if (connections?.Clients?.ForEntityId(entityId) != client) continue;
+            Log.Warning("[KitsuneShugyo] " + client.playerName + "'s game didn't answer the version check: Kitsune "
+                + "Shugyo isn't running there (not installed, or switched off because KitsuneSharedMagazines or "
+                + "KitsuneLearnedSkills is installed too). Their practice and shared reads won't count until it is.");
+        }
     }
 
     // Step 3.
     public static void OnHello(ClientInfo sender, string cmd)
     {
         if (sender == null) return;
+        waiting.Remove(sender.entityId);
         string theirs = cmd.Substring(HelloVerb.Length).Trim();
         if (theirs.Length == 0 || theirs.Length > 32) return;
         clientVersions[sender.entityId] = theirs;
