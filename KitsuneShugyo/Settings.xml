@@ -64,6 +64,15 @@
 
 	  <KitsuneShugyo preset="SLOW" points_after="100" points_every="2" />
 
+	Buying attributes (optional): buy_attributes="true" lets skill points
+	buy attribute ranks too, at vanilla's price, as well as practice earning
+	them. Default false: attributes are earned by practice only. A bought
+	rank keeps the practice already put towards the next one. Grandpa's
+	Forgetting Elixir resets perks only and refunds no attribute ranks,
+	bought ones included.
+
+	  <KitsuneShugyo preset="SLOW" buy_attributes="true" />
+
 	Multiplayer: only the SERVER's copy of this file counts. It is baked into
 	the config the server sends every player. Restart the server after editing.
 

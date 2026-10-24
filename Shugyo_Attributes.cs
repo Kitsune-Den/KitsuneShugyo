@@ -6,7 +6,8 @@ using HarmonyLib;
 using UnityEngine;
 using UnityEngine.Scripting;
 
-// Phase 2: attributes from practice. Skill points buy perks only.
+// Phase 2: attributes from practice. Skill points buy perks only, unless
+// Settings.xml sets buy_attributes="true" (see Shugyo_AttributeBuyPatch).
 //
 // Every attribute has ONE meter, $shugyo_<attribute>, counting in fractions
 // of a rank, like the crafting meters. Sources add PRACTICE POINTS (a kill
@@ -133,6 +134,13 @@ public static class Shugyo_Attributes
 
     // The five attributes, in vanilla spelling.
     public static IEnumerable<string> Names => Canonical.Values;
+
+    // Skill points can buy attribute ranks too (Settings.xml buy_attributes,
+    // the server's copy, baked into buffShugyoPace).
+    public static bool CanBuy(EntityAlive player)
+    {
+        return player?.Buffs != null && player.Buffs.GetCustomVar(Shugyo_Settings.BuyAttributesVar) >= 0.5f;
+    }
 
     public static bool IsPracticed(string progressionName)
     {
@@ -292,16 +300,29 @@ public class MinEventActionShugyoPractice : MinEventActionTargetedBase
 // screen is the only place vanilla sells them (XUiC_SkillAttributeLevel); an
 // unmeetable level_requirements would also cap the rank you have, since 3.3
 // clamps an attribute's effective level to what its requirements allow.
+//
+// With buy_attributes="true" in Settings.xml (the server's, read back from
+// $shugyo_buy_attributes) the button works as in vanilla, and practice keeps
+// counting too. A bought rank keeps the practice already earned: the meter is
+// a fraction of the rank it was filling, so it is converted back to points
+// and re-spread over the dearer rank after the one just bought.
 [HarmonyPatch(typeof(XUiC_SkillAttributeLevel))]
 [HarmonyPatch("btnBuy_OnPress")]
 public class Shugyo_AttributeBuyPatch
 {
-    public static bool Prefix(XUiC_SkillAttributeLevel __instance)
+    public static bool Prefix(XUiC_SkillAttributeLevel __instance, out int __state)
     {
+        __state = -1;
         if (!Shugyo_Attributes.Enabled) return true;
         try
         {
             EntityPlayerLocal player = __instance?.xui?.playerUI?.entityPlayer;
+            if (Shugyo_Attributes.CanBuy(player))
+            {
+                ProgressionValue value = __instance.CurrentSkill;
+                if (value != null && Shugyo_Attributes.IsPracticed(value.Name)) __state = value.Level;
+                return true;
+            }
             if (player != null)
             {
                 GameManager.ShowTooltip(player, "Attributes are earned by practice, not bought. Skill points go to perks.",
@@ -313,6 +334,27 @@ public class Shugyo_AttributeBuyPatch
             Log.Error("[KitsuneShugyo] attribute buy block failed: " + ex);
         }
         return false;
+    }
+
+    public static void Postfix(XUiC_SkillAttributeLevel __instance, int __state)
+    {
+        if (__state < 0) return;
+        try
+        {
+            EntityPlayerLocal player = __instance?.xui?.playerUI?.entityPlayer;
+            ProgressionValue value = __instance.CurrentSkill;
+            if (player?.Buffs == null || value == null || value.Level <= __state) return;
+            string var = Shugyo_Attributes.MeterVar(value.Name);
+            float meter = player.Buffs.HasCustomVar(var) ? player.Buffs.GetCustomVar(var) : 0f;
+            meter = value.Level >= value.ProgressionClass.MaxLevel
+                ? 0f
+                : meter * Math.Max(1, __state) / Math.Max(1, value.Level);
+            player.Buffs.SetCustomVar(var, meter, true, CVarOperation.set);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] attribute buy meter failed: " + ex);
+        }
     }
 }
 

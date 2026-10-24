@@ -60,6 +60,7 @@ overridden on top of a preset, e.g. `<KitsuneShugyo preset="MEDIUM" weapon="24" 
 | `rest` | 6 | In-game hours for a tired attribute to recover fully. |
 | `points_after` | 0 (off) | A player level. Past it, skill points come only every `points_every` levels. |
 | `points_every` | 2 | With `points_after` set: a skill point every this many levels past it (2 = every other level). |
+| `buy_attributes` | `false` | `true`: skill points can buy attribute ranks too, at vanilla's price, as well as practice earning them (see Attributes). |
 
 - **Multiplayer:** only the server's `Settings.xml` counts. The DLL bakes it
   into the `buffs.xml` the server sends to every client, so players can't
@@ -73,6 +74,13 @@ practice, not bought**. The Buy button on the attribute screen does nothing,
 and skill points go to perks only. Perks still need their attribute rank, so
 you can't buy Dead Eye 3 until you've shot your way to Perception 5. Player
 level, XP and skill points per level are unchanged.
+
+A server that wants both can set `buy_attributes="true"`: the Buy button works
+again at vanilla's price, and practice keeps counting. Buying a rank keeps the
+practice already put towards the next one (as points, so the dearer rank after
+it shows a smaller percentage). The Forgetting Elixir still refunds no
+attribute ranks, bought ones included. Clients need Shugyō 1.2.0 or later for
+the button; an older one still blocks it.
 
 Each attribute has a practice meter. Going from rank r to r+1 costs
 r × `attribute` practice points, so higher ranks take longer. On SLOW (40),
@@ -239,6 +247,9 @@ after loading into a world, with which folder to remove.
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history, so its old v0.7.0 to v0.10.0 tags are Learned Skills releases) and
 folds in Kitsune Shared Magazines 0.2.3.
+
+1.2.0: optional `buy_attributes`, so skill points can buy attribute ranks
+as well as practice earning them. Off by default.
 
 1.1.1: the server logs every read report, shared or not and why, and players
 whose game doesn't answer the version check; players see on screen when Shugyō
