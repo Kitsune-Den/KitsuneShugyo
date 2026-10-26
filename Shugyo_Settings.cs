@@ -80,6 +80,9 @@ public static class Shugyo_Settings
     // every PointsEvery levels (see Shugyo_SkillPoints).
     public static float PointsAfter { get; private set; }
     public static float PointsEvery { get; private set; } = DefaultPointsEvery;
+    // Optional: skill points can buy attribute ranks as well as practice
+    // earning them (see Shugyo_AttributeBuyPatch). Off by default.
+    public static bool BuyAttributes { get; private set; }
 
     public static float Weapon => values[0];
     public static float Tool => values[1];
@@ -106,6 +109,7 @@ public static class Shugyo_Settings
     public const string MagazineVar = "$shugyo_magazine";
     public const string FatigueVar = "$shugyo_fatigue_points";
     public const string RestVar = "$shugyo_rest_hours";
+    public const string BuyAttributesVar = "$shugyo_buy_attributes";
 
     public static void Load()
     {
@@ -196,6 +200,7 @@ public static class Shugyo_Settings
                 "a player level, 0 (off) or more"));
             PointsEvery = (float)Math.Floor(ReadNumber(root, "points_every", PointsEvery, 2f, 100f,
                 "a whole number from 2 to 100"));
+            BuyAttributes = ReadBool(root, "buy_attributes", BuyAttributes);
         }
         catch (Exception ex)
         {
@@ -229,6 +234,7 @@ public static class Shugyo_Settings
         AddBoth(group, RestVar, Precise(Rest));
         AddBoth(group, Shugyo_SkillPointRatePatch.AfterVar, Precise(PointsAfter));
         AddBoth(group, Shugyo_SkillPointRatePatch.EveryVar, Precise(PointsEvery));
+        AddBoth(group, BuyAttributesVar, BuyAttributes ? "1" : "0");
         buff.Add(group);
 
         Log.Out("[KitsuneShugyo] Learning pace " + Preset + ": " + string.Join(", ",
@@ -237,7 +243,8 @@ public static class Shugyo_Settings
             + "; fatigue " + (Fatigue > 0f ? Format(Fatigue) + " points, rest " + Format(Rest) + " h" : "off")
             + "; skill points " + (PointsAfter > 0f
                 ? "every " + Format(PointsEvery) + " levels past " + Format(PointsAfter)
-                : "vanilla"));
+                : "vanilla")
+            + "; attributes " + (BuyAttributes ? "practiced or bought" : "practiced only"));
     }
 
     public static string ShareText()
@@ -255,6 +262,19 @@ public static class Shugyo_Settings
         Rest = DefaultRest;
         PointsAfter = 0f;
         PointsEvery = DefaultPointsEvery;
+        BuyAttributes = false;
+    }
+
+    // An optional true/false attribute; anything else keeps `current` with a warning.
+    private static bool ReadBool(XElement root, string name, bool current)
+    {
+        string raw = ((string)root.Attribute(name) ?? "").Trim();
+        if (raw.Length == 0) return current;
+        if (string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase)) return false;
+        Log.Warning("[KitsuneShugyo] " + FileName + ": " + name + "=\"" + raw + "\" is not true or false; keeping "
+            + (current ? "true" : "false") + ".");
+        return current;
     }
 
     // An optional number attribute; out of range keeps `current` with a warning.
