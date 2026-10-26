@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
-// Magazines and perk books, read and shared with the party. Folded in from
-// Kitsune Shared Magazines 0.2.3; the network flow is unchanged, the verbs are
+// Magazines, perk books and schematics, read and shared with the party. Folded
+// in from Kitsune Shared Magazines 0.2.3, with schematics (0.3.0) and modded
+// magazines (0.3.1) added later; the network flow is unchanged, the verbs are
 // renamed so a stray copy of the old mod can't answer them.
 //
 // What changed: a magazine no longer adds a flat level. Its AddProgressionLevel
@@ -16,7 +17,7 @@ using UnityEngine;
 // NetPackage IDs exist to desync a client that lacks the mod):
 //
 //   1. Reader's client: prefix on MinEventActionAddProgressionLevel.Execute
-//      sees a magazine (item tag "csm") raise a crafting skill, skips vanilla,
+//      sees a magazine (see below) raise a crafting skill, skips vanilla,
 //      adds the practice to the local player, and sends
 //      "shugyo_read <skill> <reads>" to the server inside a
 //      NetPackageConsoleCmdServer.
@@ -43,6 +44,20 @@ using UnityEngine;
 // by someone who already knew it. The series "Complete" bonus is never shared
 // as such: each member earns it themselves when the shared volume leaves them
 // with every other book in the series unlocked.
+//
+// Schematics ride the same hops too (from Shared Magazines 0.3.0):
+// "shugyo_schem <schematic item>" up, "shugyo_schemapply <schematic item>
+// <reader name>" down. A schematic is any item whose "Unlocks" names a
+// learnable recipe (all 69 vanilla ones: every gun, melee, armor, drone and
+// vehicle mod, plus the recipe schematics). Reading one sets a player cvar
+// named after the recipe to 1, and that is all a member gets: the recipe, not
+// the reader's XP. Shared whenever it is read, like books; members who already
+// know the recipe are skipped on their side.
+//
+// A magazine is an item tagged "csm" or one whose "Unlocks" names a crafting
+// skill, the way every vanilla magazine is set up, so a modded magazine that
+// skips the tag is still a magazine (from Shared Magazines 0.3.1). Practice
+// from doing never matches: tools don't name a skill in "Unlocks".
 //
 // Series bonus self-heal: vanilla only checks for the bonus inside a volume's
 // own effect group, which is skipped when the reader already knows that
@@ -89,7 +104,7 @@ public class Shugyo_MagazineReadPatch
     }
 }
 
-// Step 1 for perk books. Hooked on the read itself (ItemActionEat), not on the
+// Step 1 for perk books and schematics. Hooked on the read itself (ItemActionEat), not on the
 // book's unlock effect: that effect is skipped when the reader already knows
 // the book (vanilla's ProgressionLevel == 0 requirement), but the book is still
 // read and used up, so it should still teach the party. Members who already
@@ -106,7 +121,7 @@ public class Shugyo_BookReadHeldPatch
         {
             if (!(_actionData is ItemActionEat.MyInventoryData data) || !data.bEatingStarted) return;
             if (!(_actionData.invData?.holdingEntity is EntityPlayerLocal player) || player.isEntityRemote) return;
-            __state = Shugyo_Share.BookClass(_actionData.invData.itemStack?.itemValue);
+            __state = Shugyo_Share.SharedReadClass(_actionData.invData.itemStack?.itemValue);
         }
         catch (Exception ex)
         {
@@ -119,10 +134,7 @@ public class Shugyo_BookReadHeldPatch
         if (__state == null) return;
         try
         {
-            EntityPlayerLocal player = _actionData.invData.holdingEntity as EntityPlayerLocal;
-            Shugyo_Share.HealSeriesOf(player, __state.Unlocks);
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read, "read");
-            Shugyo_Share.ReportBook(player, __state.Unlocks, __state.GetItemName());
+            Shugyo_Share.OnLocalRead(_actionData.invData.holdingEntity as EntityPlayerLocal, __state);
         }
         catch (Exception ex)
         {
@@ -141,7 +153,7 @@ public class Shugyo_BookReadInstantPatch
         try
         {
             if (!(ent is EntityPlayerLocal player) || player.isEntityRemote) return;
-            __state = Shugyo_Share.BookClass(stack?.itemValue);
+            __state = Shugyo_Share.SharedReadClass(stack?.itemValue);
         }
         catch (Exception ex)
         {
@@ -154,10 +166,7 @@ public class Shugyo_BookReadInstantPatch
         if (__state == null || !__result) return;
         try
         {
-            EntityPlayerLocal player = ent as EntityPlayerLocal;
-            Shugyo_Share.HealSeriesOf(player, __state.Unlocks);
-            Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read, "read");
-            Shugyo_Share.ReportBook(player, __state.Unlocks, __state.GetItemName());
+            Shugyo_Share.OnLocalRead(ent as EntityPlayerLocal, __state);
         }
         catch (Exception ex)
         {
@@ -197,16 +206,18 @@ public class Shugyo_ServerInboxPatch
         string cmd = __instance.cmd;
         bool isRead = cmd != null && cmd.StartsWith(Shugyo_Share.ReadVerb + " ", StringComparison.Ordinal);
         bool isBook = cmd != null && cmd.StartsWith(Shugyo_Share.BookVerb + " ", StringComparison.Ordinal);
+        bool isSchem = cmd != null && cmd.StartsWith(Shugyo_Share.SchematicVerb + " ", StringComparison.Ordinal);
         if (cmd != null && cmd.StartsWith(Shugyo_Version.HelloVerb + " ", StringComparison.Ordinal))
         {
             Shugyo_Version.OnHello(__instance.Sender, cmd);
             return false;
         }
-        if (!isRead && !isBook) return true;
+        if (!isRead && !isBook && !isSchem) return true;
         try
         {
             if (_world != null && isRead) Shugyo_Share.OnReadReport(_world, __instance.Sender, cmd);
             if (_world != null && isBook) Shugyo_Share.OnBookReport(_world, __instance.Sender, cmd);
+            if (_world != null && isSchem) Shugyo_Share.OnSchematicReport(_world, __instance.Sender, cmd);
         }
         catch (Exception ex)
         {
@@ -227,12 +238,14 @@ public class Shugyo_ClientInboxPatch
         if (!__instance.bExecute || lines == null || lines.Count == 0 || lines[0] == null) return true;
         bool isApply = lines[0].StartsWith(Shugyo_Share.ApplyVerb + " ", StringComparison.Ordinal);
         bool isBook = lines[0].StartsWith(Shugyo_Share.BookApplyVerb + " ", StringComparison.Ordinal);
+        bool isSchem = lines[0].StartsWith(Shugyo_Share.SchematicApplyVerb + " ", StringComparison.Ordinal);
         if (Shugyo_Version.HandleClientLine(_world, lines[0])) return false;
-        if (!isApply && !isBook) return true;
+        if (!isApply && !isBook && !isSchem) return true;
         try
         {
             if (_world != null && isApply) Shugyo_Share.OnApply(_world, lines[0]);
             if (_world != null && isBook) Shugyo_Share.OnBookApply(_world, lines[0]);
+            if (_world != null && isSchem) Shugyo_Share.OnSchematicApply(_world, lines[0]);
         }
         catch (Exception ex)
         {
@@ -248,6 +261,8 @@ public static class Shugyo_Share
     public const string ApplyVerb = "shugyo_apply";
     public const string BookVerb = "shugyo_book";
     public const string BookApplyVerb = "shugyo_bookapply";
+    public const string SchematicVerb = "shugyo_schem";
+    public const string SchematicApplyVerb = "shugyo_schemapply";
 
     // A magazine read takes about a second (Eat action Delay 1.0), so a faster
     // stream of reports from one player is not real reading.
@@ -270,10 +285,14 @@ public static class Shugyo_Share
         return null;
     }
 
+    // Tagged "csm", or naming a crafting skill in Unlocks the way every vanilla
+    // magazine does, so a modded magazine that skips the tag still counts.
     public static bool IsMagazine(MinEventParams _params)
     {
         ItemClass itemClass = _params?.ItemValue?.ItemClass;
-        return itemClass != null && itemClass.ItemTags.Test_AnySet(MagazineTag);
+        if (itemClass == null) return false;
+        if (itemClass.ItemTags.Test_AnySet(MagazineTag)) return true;
+        return !string.IsNullOrEmpty(itemClass.Unlocks) && IsCraftingSkillName(itemClass.Unlocks);
     }
 
     // By class, not by player: a dedicated server runs the read for a remote
@@ -423,6 +442,28 @@ public static class Shugyo_Share
         int gained = Shugyo_Practice.Add(player, progressionName, reads * Shugyo_Practice.MagazineValue(player), "", "shared");
         GameManager.ShowTooltip(player, readerName + " shared a magazine. "
             + Shugyo_Practice.Progress(player, progressionName, gained), false, false, 0f);
+    }
+
+    // ---- Perk books and schematics: the read hooks ----
+
+    // The item class when this item is a perk book or a schematic, else null.
+    public static ItemClass SharedReadClass(ItemValue itemValue)
+    {
+        return BookClass(itemValue) ?? SchematicClass(itemValue);
+    }
+
+    // Reader's client, after a book or schematic was read.
+    public static void OnLocalRead(EntityPlayerLocal player, ItemClass itemClass)
+    {
+        if (player == null || itemClass == null) return;
+        Shugyo_Attributes.Add(player, Shugyo_Attributes.Intellect, Shugyo_Attributes.Points.Read, "read");
+        if (Progression.ProgressionClasses.ContainsKey(itemClass.Unlocks))
+        {
+            HealSeriesOf(player, itemClass.Unlocks);
+            ReportBook(player, itemClass.Unlocks, itemClass.GetItemName());
+            return;
+        }
+        ReportSchematic(player, itemClass.GetItemName());
     }
 
     // ---- Perk books ----
@@ -598,5 +639,109 @@ public static class Shugyo_Share
         if (string.IsNullOrEmpty(seriesName)) seriesName = series.Name;
         Audio.Manager.PlayInsidePlayerHead("read_skillbook_final", player.entityId);
         GameManager.ShowTooltip(player, seriesName + " series complete!", false, false, 0f);
+    }
+
+    // ---- Schematics ----
+
+    // The schematic's item class when its Unlocks names a learnable recipe,
+    // else null. Perk books and magazines never match: their Unlocks names a
+    // perk or skill, not a recipe.
+    public static ItemClass SchematicClass(ItemValue itemValue)
+    {
+        ItemClass itemClass = itemValue?.ItemClass;
+        return SchematicRecipe(itemClass) != null ? itemClass : null;
+    }
+
+    public static Recipe SchematicRecipe(ItemClass itemClass)
+    {
+        if (itemClass == null || string.IsNullOrEmpty(itemClass.Unlocks)) return null;
+        if (Progression.ProgressionClasses.ContainsKey(itemClass.Unlocks)) return null;
+        Recipe recipe = CraftingManager.GetRecipe(itemClass.Unlocks);
+        return recipe != null && recipe.IsLearnable ? recipe : null;
+    }
+
+    public static void ReportSchematic(EntityPlayerLocal reader, string schematicItem)
+    {
+        if (reader == null || schematicItem == null) return;
+        ConnectionManager connections = SingletonMonoBehaviour<ConnectionManager>.Instance;
+        if (connections == null) return;
+        if (connections.IsServer)
+        {
+            ShareSchematic(reader, reader.EntityName, schematicItem);
+            return;
+        }
+        connections.SendToServer(NetPackageManager.GetPackage<NetPackageConsoleCmdServer>()
+            .Setup(SchematicVerb + " " + schematicItem));
+    }
+
+    // Server side: "shugyo_schem <schematic item>" from a client. The reader's
+    // recipe cvar is set on their client and reaches the server later with
+    // their player data, so only the item itself is checked here.
+    public static void OnSchematicReport(World world, ClientInfo sender, string cmd)
+    {
+        if (sender == null) return;
+        string[] parts = cmd.Split(' ');
+        if (parts.Length != 2)
+        {
+            Log.Warning("[KitsuneShugyo] Ignored a malformed schematic report from " + sender.playerName + ": " + cmd);
+            return;
+        }
+
+        EntityPlayer reader = world.GetEntity(sender.entityId) as EntityPlayer;
+        if (reader == null || SchematicRecipe(ItemClass.GetItemClass(parts[1])) == null)
+        {
+            Log.Warning("[KitsuneShugyo] Ignored a schematic report from " + sender.playerName + ": " + parts[1]
+                + " doesn't unlock a learnable recipe here");
+            return;
+        }
+
+        if (!TakeReportSlot(sender)) return;
+        if (ShareSchematic(reader, sender.playerName, parts[1]) <= 0)
+        {
+            Log.Out("[KitsuneShugyo] " + sender.playerName + " read " + parts[1] + ", not shared: "
+                + NotSharedReason(reader));
+        }
+    }
+
+    // Returns how many party members it reached (0 when sharing is off).
+    public static int ShareSchematic(EntityPlayer reader, string readerName, string schematicItem)
+    {
+        if (Shugyo_Settings.Share == Shugyo_Settings.ShareMode.Off) return 0;
+        int shared = SendToParty(reader,
+            host => ApplySchematic(host, schematicItem, readerName),
+            SchematicApplyVerb + " " + schematicItem + " " + readerName);
+
+        if (shared > 0)
+        {
+            Log.Out("[KitsuneShugyo] " + readerName + " read " + schematicItem + ", shared with "
+                + shared + " party member(s)");
+        }
+        return shared;
+    }
+
+    // Member side: "shugyo_schemapply <schematic item> <reader name...>".
+    public static void OnSchematicApply(World world, string line)
+    {
+        string[] parts = line.Split(new[] { ' ' }, 3);
+        if (parts.Length < 2) return;
+        string readerName = parts.Length == 3 && parts[2].Length > 0 ? parts[2] : "A party member";
+        ApplySchematic(world.GetPrimaryPlayer(), parts[1], readerName);
+    }
+
+    // Mirrors the schematic's own effect: the recipe's cvar set to 1 on the
+    // local player, which saves and syncs with their player data. Players who
+    // already know the recipe get nothing.
+    public static void ApplySchematic(EntityPlayerLocal player, string schematicItem, string readerName)
+    {
+        if (player == null) return;
+        ItemClass schematic = ItemClass.GetItemClass(schematicItem);
+        Recipe recipe = SchematicRecipe(schematic);
+        if (recipe == null || player.GetCVar(recipe.GetName()) > 0f) return;
+        player.SetCVar(recipe.GetName(), 1f);
+        player.bPlayerStatsChanged = true;
+
+        string schematicName = schematic.GetLocalizedItemName();
+        if (string.IsNullOrEmpty(schematicName)) schematicName = schematicItem;
+        GameManager.ShowTooltip(player, readerName + " shared " + schematicName + " with you.", false, false, 0f);
     }
 }
