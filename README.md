@@ -7,8 +7,8 @@ you do.** Attributes level from practice, and skill points buy perks only.
 Crafting skills level from using tools and weapons, crafting,
 cooking, repairing and salvaging vehicles, wiring and looting. Magazines are
 back in loot, but they speed you up instead of gating you, and whatever you
-read is shared with your party. Perk books are untouched, apart from being
-shared too.
+read is shared with your party. Perk books and schematics are untouched, apart
+from being shared too.
 
 Kitsune Shugyō replaces two mods: **Kitsune Learned Skills** and **Kitsune
 Shared Magazines**. Remove both before installing it (see Upgrading).
@@ -54,7 +54,7 @@ overridden on top of a preset, e.g. `<KitsuneShugyo preset="MEDIUM" weapon="24" 
 | Setting | Default | Meaning |
 |---|---|---|
 | `magazine` | 0.25 | Levels one magazine read adds to its skill. 1 = vanilla. |
-| `share` | `party` | `party`: magazines and perk books you read also teach your party, wherever they are. `nearby`: only party members within `range`. `off`: no sharing. |
+| `share` | `party` | `party`: magazines, perk books and schematics you read also teach your party, wherever they are. `nearby`: only party members within `range`. `off`: no sharing. |
 | `range` | 100 | Metres, for `share="nearby"`. |
 | `fatigue` | 60 | Practice points before an attribute tires (see Anti-grind). 0 turns fatigue off. |
 | `rest` | 6 | In-game hours for a tired attribute to recover fully. |
@@ -100,7 +100,7 @@ rank 1 to 2 is 40 points and rank 9 to 10 is 360.
 | a completed craft (backpack or workstation), weighted by the recipe's craft XP: a stone axe is about 0.6, a steel tool 2 (at most 5 per batch) | Intellect | 0.1–2 |
 | a wire connection (each pair once per session) | Intellect | 1 |
 | repairing a vehicle | Intellect | 2 |
-| reading a magazine or perk book yourself (shared reads don't count) | Intellect | 2 |
+| reading a magazine, perk book or schematic yourself (shared reads don't count) | Intellect | 2 |
 | buying or selling at a trader or vending machine | Intellect | 1 |
 
 A rank-up shows a line like "Your Perception sharpens: rank 5."
@@ -168,14 +168,23 @@ gives them "doing" hooks that work from level 1:
 | Seeds | crafting farm plots (always unlocked) | 8 crafts per level | seed recipes unlock from 2 |
 | Backpacks | opening a fresh loot container (first open only; your own storage never counts) | 30 containers per level | small backpack unlocks at 5 |
 
-### Magazines and perk books
+### Magazines, perk books and schematics
 
 All 24 crafting magazines are back in loot and on traders at vanilla rates.
 Reading one adds `magazine` levels (a quarter by default) to its skill and
 shows how close you are to the next level. With `share="party"`, everyone in
-your party gets the same practice and a note saying who read it. Perk books
-work as in vanilla and are shared the same way; each member earns a series'
-completion bonus themselves when the shared volume finishes their set.
+your party gets the same practice and a note saying who read it. A magazine
+from another mod counts too, as long as it names its crafting skill in
+`Unlocks` the way the vanilla ones do, even without the `csm` tag.
+
+Perk books work as in vanilla and are shared the same way; each member earns a
+series' completion bonus themselves when the shared volume finishes their set.
+
+Schematics work as in vanilla and are shared too: all 69, which covers every
+gun, melee, armor, drone and vehicle mod plus the recipe schematics (Sham
+Chowder, Grace's corn and so on). A member who doesn't know the recipe learns
+it and sees who shared it; members who already know it get nothing, and nobody
+gets the reader's XP for reading it.
 
 Under the hood, a read rides three vanilla console packages (reader to server
 to party), so a player or server without the mod just sees "unknown command"
@@ -247,6 +256,11 @@ after loading into a world, with which folder to remove.
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history, so its old v0.7.0 to v0.10.0 tags are Learned Skills releases) and
 folds in Kitsune Shared Magazines 0.2.3.
+
+1.3.0: schematics are shared with the party too (from Shared Magazines
+0.3.0), and so are modded magazines without the `csm` tag (0.3.1). Reading a
+schematic yourself counts toward Intellect like a magazine or book. Shared
+Magazines is still replaced: remove it if it's installed.
 
 1.2.0: optional `buy_attributes`, so skill points can buy attribute ranks
 as well as practice earning them. Off by default.
