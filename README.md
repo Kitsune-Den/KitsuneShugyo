@@ -191,6 +191,14 @@ Under the hood, a read rides three vanilla console packages (reader to server
 to party), so a player or server without the mod just sees "unknown command"
 and nobody is dropped.
 
+## Seeing your progress
+
+Type `practice` in the F1 console. Every player can use it, and it only shows
+your own character: each attribute and crafting skill with its rank or level,
+the % to the next one, fatigue and top practice sources. `practice work` shows
+only the ones with "work" in the name. KitsuneUI's Practice tab shows the same
+meters as bars.
+
 ## Admin command
 
 `shugyo` in the F1 console (or the server console / telnet). Admin-only by
@@ -257,6 +265,11 @@ after loading into a world, with which folder to remove.
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history, so its old v0.7.0 to v0.10.0 tags are Learned Skills releases) and
 folds in Kitsune Shared Magazines 0.2.3.
+
+1.5.0: a `practice` console command that every player can use, showing their
+own meters like `shugyo status` does. `shugyo` is admin-only because it can
+give practice, so a player without KitsuneUI had no way to watch a meter fill
+between level-ups. From Learned Skills 0.15.0's `kls`.
 
 1.4.0: Robotics levels from practice. It was the one crafting skill with no
 practice source below level 11, so only its magazines moved it. A kill with a
