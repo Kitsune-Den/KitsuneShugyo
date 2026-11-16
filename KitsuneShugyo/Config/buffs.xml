@@ -187,7 +187,8 @@
 			NOT COVERED HERE (handled by the DLL instead, see
 			Shugyo_Learning.cs): learn by crafting (every skill), workstation
 			queue completions, vehicle repairs, wire connections, spikes and
-			farm-plot gateway crafts, opening fresh loot containers, and
+			farm-plot gateway crafts, pipe-baton crafts and kills with robotics
+			items, opening fresh loot containers, and
 			magazine reads (Shugyo_Sharing.cs).
 		-->
 		<buff name="buffShugyoLearn" hidden="true" remove_on_death="false">

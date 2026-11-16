@@ -166,6 +166,7 @@ gives them "doing" hooks that work from level 1:
 | Electrician | completing a wire connection with the wire tool | 4 connections per level | loot or buy a wire tool, own gear unlocks at 25 |
 | Traps | crafting spikes / barbed fence (always unlocked) | 8 crafts per level | dart traps and turrets unlock at 25 |
 | Seeds | crafting farm plots (always unlocked) | 8 crafts per level | seed recipes unlock from 2 |
+| Robotics | kills with a baton, junk sledge or junk turret (held or deployed), and crafting pipe batons (always unlocked) | the `weapon` and `craft` paces | junk sledge unlocks at 11 |
 | Backpacks | opening a fresh loot container (first open only; your own storage never counts) | 30 containers per level | small backpack unlocks at 5 |
 
 ### Magazines, perk books and schematics
@@ -256,6 +257,12 @@ after loading into a world, with which folder to remove.
 Kitsune Shugyō starts from Kitsune Learned Skills 0.10.0 (this repo keeps its
 history, so its old v0.7.0 to v0.10.0 tags are Learned Skills releases) and
 folds in Kitsune Shared Magazines 0.2.3.
+
+1.4.0: Robotics levels from practice. It was the one crafting skill with no
+practice source below level 11, so only its magazines moved it. A kill with a
+baton, junk sledge or junk turret now counts as a `weapon` action, including
+kills by a turret or sledge you have deployed, and crafting a pipe baton
+counts as a craft. From Learned Skills 0.14.0.
 
 1.3.0: schematics are shared with the party too (from Shared Magazines
 0.3.0), and so are modded magazines without the `csm` tag (0.3.1). Reading a

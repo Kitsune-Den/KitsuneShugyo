@@ -37,6 +37,10 @@ using HarmonyLib;
 //      because their line's first UnlockedBy craftable sits above level 1):
 //        spikes + barbed fence -> craftingTraps   (dart traps unlock at 25)
 //        farm plots            -> craftingSeeds   (first seeds unlock at 2)
+//        pipe baton            -> craftingRobotics (1.4.0: the baton is
+//                                 Robotics' level-1 item but carries no
+//                                 UnlockedBy, and the junk sledge, the first
+//                                 item that does, unlocks at 11)
 //
 //   6. Backpack skill: XUiC_LootWindowGroup.OpenLooting runs on the looting
 //      player's client; _firstTimeTouched is true only for the first open of
@@ -45,6 +49,15 @@ using HarmonyLib;
 //      onSelfOpenLootContainer XML trigger: it fires TWICE per fresh
 //      container (server LootContainerOpened + client lock response).
 //      `loot` containers = +1.
+//
+//   7. Robotics from kills (1.4.0): a kill with a "roboticsSkill" item (pipe
+//      baton, stun baton, junk sledge, junk turret) credits craftingRobotics
+//      as a `weapon` action, like the weapon lines in buffs.xml. Not the XML
+//      onSelfKilledOther pattern: a DEPLOYED turret or sledge fires on the
+//      server (MiniTurretFireController.Fire), so on a dedicated server that
+//      event never reaches the owner's client, and the owner is holding
+//      something else anyway. Progression.AddLevelExp does run on the
+//      killer's client for every kill, and carries the item that made it.
 //
 // The same hooks also feed attribute practice (Shugyo_Attributes): crafting,
 // wiring and vehicle repairs teach Intellect, fresh containers Perception.
@@ -219,6 +232,35 @@ public class Shugyo_LootOpenPatch
     }
 }
 
+// Kills with a robotics item (see header item 7). Both kill-XP paths end
+// here on the killer's own client: EntityPlayer.AddKillXP directly when the
+// killer is local to the machine that resolved the kill, and
+// NetPackageEntityAddExpClient otherwise. Party-shared kills arrive as
+// "_xpFromParty" with no item, so a party member's kills don't count.
+[HarmonyPatch(typeof(Progression))]
+[HarmonyPatch("AddLevelExp")]
+public class Shugyo_RoboticsKillPatch
+{
+    private static readonly FastTags<TagGroup.Global> RoboticsTag = FastTags<TagGroup.Global>.Parse("roboticsSkill");
+
+    public static void Postfix(Progression __instance, string _cvarXPName, Progression.XPTypes _xpType, ItemValue _itemValue)
+    {
+        try
+        {
+            if (!Shugyo_Attributes.Enabled) return;
+            if (_xpType != Progression.XPTypes.Kill || _cvarXPName != "_xpFromKill") return;
+            ItemClass itemClass = _itemValue?.ItemClass;
+            if (itemClass == null || !itemClass.HasAnyTags(RoboticsTag)) return;
+            if (!(__instance?.parent is EntityPlayerLocal player) || player.isEntityRemote) return;
+            Shugyo_Practice.AddActions(player, "craftingRobotics", 1, "weapon", Shugyo_Settings.Weapon);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("[KitsuneShugyo] robotics kill-to-learn failed: " + ex);
+        }
+    }
+}
+
 public static class Shugyo_Craft
 {
     // Always-unlocked recipes whose skill line has no UnlockedBy craftable at
@@ -230,6 +272,7 @@ public static class Shugyo_Craft
         { "trapSpikesIronDmg0",        "craftingTraps" },
         { "barbedFence",               "craftingTraps" },
         { "farmPlotBlockVariantHelper", "craftingSeeds" },
+        { "meleeWpnBatonT0PipeBaton",   "craftingRobotics" },
     };
 
     // Shared craft handler for both queue paths: UnlockedBy award + gateway map.
