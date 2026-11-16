@@ -221,13 +221,13 @@ public class ConsoleCmdShugyo : ConsoleCmdAbstract
         }
     }
 
-    private static void Out(string line)
+    internal static void Out(string line)
     {
         SingletonMonoBehaviour<SdtdConsole>.Instance.Output(line);
     }
 
     // The named player, or the sender when no name is given.
-    private static EntityPlayer Target(string param, CommandSenderInfo sender)
+    internal static EntityPlayer Target(string param, CommandSenderInfo sender)
     {
         World world = GameManager.Instance?.World;
         if (world == null) return null;
@@ -268,7 +268,8 @@ public class ConsoleCmdShugyo : ConsoleCmdAbstract
         }
     }
 
-    private static void Status(EntityPlayer player)
+    // `filter` keeps only the meters whose name contains it (null = all).
+    internal static void Status(EntityPlayer player, string filter = null)
     {
         if (player == null) return;
         Out("Kitsune Shugyo practice for " + player.EntityName + ":");
@@ -276,7 +277,7 @@ public class ConsoleCmdShugyo : ConsoleCmdAbstract
         foreach (string name in Shugyo_Attributes.Names)
         {
             ProgressionValue value = player.Progression?.GetProgressionValue(name);
-            if (value == null) continue;
+            if (value == null || !Matches(name, value, filter)) continue;
             float fatigue = Cvar(player, Shugyo_Fatigue.Var(name));
             Out(string.Format(CultureInfo.InvariantCulture, "  {0,-14} rank {1}/{2}  {3,3}%  fatigue {4:0.00}{5}  {6}",
                 name, value.Level, value.ProgressionClass.MaxLevel, Percent(player, name, value),
@@ -286,10 +287,19 @@ public class ConsoleCmdShugyo : ConsoleCmdAbstract
         foreach (string name in Shugyo_Practice.SkillNames)
         {
             ProgressionValue value = player.Progression?.GetProgressionValue(name);
-            if (value == null) continue;
+            if (value == null || !Matches(name, value, filter)) continue;
             Out(string.Format(CultureInfo.InvariantCulture, "  {0,-24} {1,3}/{2,-3} {3,3}%  {4}",
                 name, value.Level, value.ProgressionClass.MaxLevel, Percent(player, name, value), Sources(player, name)));
         }
+    }
+
+    // By internal name (craftingWorkstations) or the name the game shows.
+    private static bool Matches(string name, ProgressionValue value, string filter)
+    {
+        if (string.IsNullOrEmpty(filter)) return true;
+        if (name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        string shown = value.ProgressionClass != null ? Shugyo_Practice.DisplayName(value.ProgressionClass) : null;
+        return shown != null && shown.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static int Percent(EntityPlayer player, string meter, ProgressionValue value)
@@ -391,6 +401,52 @@ public class ConsoleCmdShugyo : ConsoleCmdAbstract
             {
                 player.Buffs.SetCustomVar(Shugyo_Fatigue.Var(name), 0f, true, CVarOperation.set);
             }
+        }
+    }
+}
+
+// "practice" (1.5.0): shugyo status for yourself, open to every player.
+// The shugyo command is admin-only because it can give practice; without the
+// KitsuneUI Practice tab a player had no way to see a meter fill between
+// level-ups. Runs where shugyo status does (the server reads its net synced
+// copy of the sender), so it needs nothing new on the client.
+public class ConsoleCmdShugyoPractice : ConsoleCmdAbstract
+{
+    public override int DefaultPermissionLevel => 1000;
+
+    public override string[] getCommands()
+    {
+        return new[] { "practice" };
+    }
+
+    public override string getDescription()
+    {
+        return "Kitsune Shugyo: your own practice meters and how far each is toward the next level.";
+    }
+
+    public override string getHelp()
+    {
+        return "Usage:\n"
+            + "  practice - every attribute and crafting skill: rank or level, % to the next, fatigue, top sources\n"
+            + "  practice <text> - only the ones whose name contains <text>, e.g. practice work";
+    }
+
+    public override void Execute(List<string> _params, CommandSenderInfo _senderInfo)
+    {
+        try
+        {
+            if (!Shugyo_Attributes.Enabled)
+            {
+                ConsoleCmdShugyo.Out("Kitsune Shugyo is not running (see the log for why).");
+                return;
+            }
+            string filter = _params != null && _params.Count > 0 ? string.Join(" ", _params).Trim() : null;
+            ConsoleCmdShugyo.Status(ConsoleCmdShugyo.Target(null, _senderInfo), filter);
+        }
+        catch (Exception ex)
+        {
+            ConsoleCmdShugyo.Out("practice failed: " + ex.Message);
+            Log.Error("[KitsuneShugyo] practice command failed: " + ex);
         }
     }
 }
